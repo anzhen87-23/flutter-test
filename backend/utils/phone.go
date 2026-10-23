@@ -4,15 +4,24 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strings"
 	"time"
 )
 
 // 中国大陆手机号：1[3-9]开头的11位数字
 var phoneRegex = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
+// 邮箱格式验证
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
 // ValidatePhone 验证中国大陆手机号格式
 func ValidatePhone(phone string) bool {
 	return phoneRegex.MatchString(phone)
+}
+
+// ValidateEmail 验证邮箱格式
+func ValidateEmail(email string) bool {
+	return emailRegex.MatchString(email) && strings.Contains(email, "@")
 }
 
 // MaskPhone 手机号脱敏显示（138****8000）

@@ -11,6 +11,9 @@ import (
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
 
+	// 使用 CORS 中间件
+	r.Use(middleware.CORS())
+
 	// 创建处理器
 	authHandler := handlers.NewAuthHandler(db)
 	noteHandler := handlers.NewNoteHandler(db)

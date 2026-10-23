@@ -33,7 +33,7 @@ func (h *AuthHandler) SendCode(c *gin.Context) {
 
 	// 验证目标格式（手机号或邮箱）
 	isPhone := utils.ValidatePhone(req.Target)
-	isEmail := req.Type == "verify_email" || (len(req.Target) > 3 && req.Target[len(req.Target)-4] == '@')
+	isEmail := utils.ValidateEmail(req.Target)
 
 	if !isPhone && !isEmail {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号或邮箱格式错误"})
