@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人笔记</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- 应用容器 -->
+    <div id="app">
+        <!-- 顶部导航栏 -->
+        <header id="header" class="header hidden">
+            <div class="header-left">
+                <h1 class="logo">📝 个人笔记</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="#/notes" class="nav-link active" data-page="notes">笔记</a>
+                <a href="#/folders" class="nav-link" data-page="folders">文件夹</a>
+                <a href="#/profile" class="nav-link" data-page="profile">我的</a>
+            </nav>
+            <div class="header-right">
+                <button id="btn-logout" class="btn btn-sm">退出</button>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main id="main-content" class="main-content">
+            <!-- 动态页面渲染在此 -->
+        </main>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- 确认对话框 -->
+    <div id="confirm-dialog" class="dialog hidden">
+        <div class="dialog-content">
+            <p id="confirm-message"></p>
+            <div class="dialog-actions">
+                <button id="confirm-cancel" class="btn">取消</button>
+                <button id="confirm-ok" class="btn btn-primary">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
