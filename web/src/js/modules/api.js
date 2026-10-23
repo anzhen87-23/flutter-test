@@ -3,7 +3,10 @@
  * 封装所有与后端 API 的通信
  */
 
-const API_BASE = 'http://localhost:8080/api';
+// 动态获取 API 基础地址（根据当前访问地址）
+const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:8080/api'
+    : `http://${window.location.hostname}:8080/api`;
 
 /**
  * 获取存储的 Token

@@ -99,7 +99,10 @@ async function loadProfile() {
         document.getElementById('profile-account').textContent = user.phone || user.email || user.username;
 
         if (user.avatar_url) {
-            document.getElementById('profile-avatar').src = 'http://localhost:8080' + user.avatar_url;
+            const apiBase = window.location.hostname === 'localhost'
+                ? 'http://localhost:8080'
+                : `http://${window.location.hostname}:8080`;
+            document.getElementById('profile-avatar').src = apiBase + user.avatar_url;
         }
 
         if (user.birthday) {
