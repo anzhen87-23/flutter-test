@@ -68,7 +68,7 @@ export async function renderNoteEditor(container, params) {
     saveBtn.addEventListener('click', async () => {
         const title = titleInput.value.trim();
         const content = contentInput.value.trim();
-        const folderId = folderSelect.value || null;
+        const folderId = folderSelect.value ? parseInt(folderSelect.value, 10) : null;
 
         if (!title) {
             showToast('请输入标题', 'error');
