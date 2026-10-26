@@ -99,10 +99,10 @@ async function loadProfile() {
         document.getElementById('profile-account').textContent = user.phone || user.email || user.username;
 
         if (user.avatar_url) {
-            const apiBase = window.location.hostname === 'localhost'
+            const avatarBase = window.location.hostname === 'localhost'
                 ? 'http://localhost:8080'
-                : `http://${window.location.hostname}:8080`;
-            document.getElementById('profile-avatar').src = apiBase + user.avatar_url;
+                : '';  // 线上通过 Nginx 代理，同源访问
+            document.getElementById('profile-avatar').src = avatarBase + user.avatar_url;
         }
 
         if (user.birthday) {

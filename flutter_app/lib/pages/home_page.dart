@@ -15,10 +15,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  final GlobalKey<NotesListPageState> _notesKey = GlobalKey();
+  final GlobalKey<FoldersPageState> _foldersKey = GlobalKey();
 
   List<Widget> get _pages => [
-    const NotesListPage(),
-    const FoldersPage(),
+    NotesListPage(key: _notesKey),
+    FoldersPage(key: _foldersKey),
     ProfilePage(onLogout: widget.onLogout),
   ];
 
@@ -47,6 +49,16 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _onTabChanged(int index) {
+    setState(() => _currentIndex = index);
+    // 切换到笔记或文件夹 Tab 时自动刷新
+    if (index == 0) {
+      _notesKey.currentState?.refresh();
+    } else if (index == 1) {
+      _foldersKey.currentState?.refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,7 +68,7 @@ class _HomePageState extends State<HomePage> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _onTabChanged,
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(

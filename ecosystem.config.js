@@ -2,13 +2,14 @@ module.exports = {
   apps: [
     {
       name: 'personal-notes-backend',
-      script: './backend/personal-notes',
+      script: '/root/app/backend/personal-notes',
       cwd: '/root/app/backend',
       instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
       env: {
+        UPLOAD_DIR: '/var/www/uploads/avatars',
         NODE_ENV: 'production'
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',

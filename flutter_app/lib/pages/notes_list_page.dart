@@ -9,16 +9,21 @@ class NotesListPage extends StatefulWidget {
   const NotesListPage({super.key});
 
   @override
-  State<NotesListPage> createState() => _NotesListPageState();
+  NotesListPageState createState() => NotesListPageState();
 }
 
-class _NotesListPageState extends State<NotesListPage> {
+class NotesListPageState extends State<NotesListPage> {
   List<Note> _notes = [];
   List<Folder> _folders = [];
   int _currentPage = 1;
   int _total = 0;
   int? _selectedFolderId;
   bool _loading = true;
+
+  /// 外部可调用：刷新笔记列表
+  void refresh() {
+    _loadNotes();
+  }
 
   @override
   void initState() {

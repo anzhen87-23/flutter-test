@@ -7,16 +7,21 @@ class FoldersPage extends StatefulWidget {
   const FoldersPage({super.key});
 
   @override
-  State<FoldersPage> createState() => _FoldersPageState();
+  FoldersPageState createState() => FoldersPageState();
 }
 
-class _FoldersPageState extends State<FoldersPage> {
+class FoldersPageState extends State<FoldersPage> {
   List<Folder> _folders = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadFolders();
+  }
+
+  /// 外部可调用：刷新文件夹列表
+  void refresh() {
     _loadFolders();
   }
 

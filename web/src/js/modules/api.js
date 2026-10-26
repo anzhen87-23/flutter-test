@@ -3,10 +3,12 @@
  * 封装所有与后端 API 的通信
  */
 
-// 动态获取 API 基础地址（根据当前访问地址）
+// 动态获取 API 基础地址
+// 本地开发: 直接访问后端 8080 端口
+// 线上域名: 通过 Nginx 反向代理，同源访问 /api
 const API_BASE = window.location.hostname === 'localhost'
     ? 'http://localhost:8080/api'
-    : `http://${window.location.hostname}:8080/api`;
+    : '/api';
 
 /**
  * 获取存储的 Token
