@@ -78,6 +78,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     setState(() => _saving = true);
 
+    debugPrint('════════════════════════════════════════════');
+    debugPrint('📝 [Note Save] 开始保存');
+    debugPrint('📝 [Note Save] 是否新建: $_isNew');
+    debugPrint('📝 [Note Save] title: $title');
+    debugPrint('📝 [Note Save] content: $content');
+    debugPrint('📝 [Note Save] _selectedFolderId: $_selectedFolderId (runtimeType: ${_selectedFolderId.runtimeType})');
+    debugPrint('📝 [Note Save] initialFolderId: ${widget.initialFolderId}');
+
     try {
       if (_isNew) {
         await NotesApi.create(
@@ -163,6 +171,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                         )),
                       ],
                       onChanged: (value) {
+                        debugPrint('🔽 [Dropdown] onChanged: value=$value, runtimeType=${value.runtimeType}');
                         setState(() => _selectedFolderId = value);
                       },
                     ),

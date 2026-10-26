@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"bytes"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -93,15 +96,22 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 func (h *NoteHandler) CreateNote(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
+	// 打印原始请求体用于调试
+	bodyBytes, _ := io.ReadAll(c.Request.Body)
+	log.Printf("[note] CreateNote 原始请求体: %s", string(bodyBytes))
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	var req struct {
 		Title    string `json:"title" binding:"required,max=200"`
 		Content  string `json:"content"`
 		FolderID *uint  `json:"folder_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[note] CreateNote 解析错误: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error()})
 		return
 	}
+	log.Printf("[note] CreateNote 解析结果: title=%s, folder_id=%v", req.Title, req.FolderID)
 
 	// 如果指定了文件夹，验证文件夹是否存在且属于当前用户
 	if req.FolderID != nil {
@@ -140,15 +150,22 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 		return
 	}
 
+	// 打印原始请求体用于调试
+	bodyBytes, _ := io.ReadAll(c.Request.Body)
+	log.Printf("[note] UpdateNote 原始请求体: %s", string(bodyBytes))
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	var req struct {
 		Title    string `json:"title" binding:"omitempty,max=200"`
 		Content  *string `json:"content"`
 		FolderID *uint  `json:"folder_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[note] UpdateNote 解析错误: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error()})
 		return
 	}
+	log.Printf("[note] UpdateNote 解析结果: title=%s, folder_id=%v", req.Title, req.FolderID)
 
 	// 验证笔记存在且属于当前用户
 	var note models.Note

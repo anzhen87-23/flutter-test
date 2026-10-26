@@ -263,6 +263,9 @@ class NotesApi {
       data['folder_id'] = folderId;
     }
 
+    debugPrint('📤 [NotesApi.create] data: $data');
+    debugPrint('📤 [NotesApi.create] folderId type: ${folderId.runtimeType}');
+
     final result = await ApiService.request('POST', '/notes', data: data);
     return Note.fromJson(result['data']);
   }
@@ -276,8 +279,13 @@ class NotesApi {
     final data = <String, dynamic>{
       'title': title,
       'content': content,
-      'folder_id': folderId,
     };
+    if (folderId != null) {
+      data['folder_id'] = folderId;
+    }
+
+    debugPrint('📤 [NotesApi.update] id: $id, data: $data');
+    debugPrint('📤 [NotesApi.update] folderId type: ${folderId.runtimeType}');
 
     final result = await ApiService.request('PUT', '/notes/$id', data: data);
     return Note.fromJson(result['data']);
