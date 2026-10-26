@@ -47,8 +47,17 @@ else
     info "No changes to commit"
 fi
 
-# Step 2: Transfer files to server
-info "Step 2: Transferring files to server..."
+# Step 2: Compile backend locally for Linux
+info "Step 2: Compiling backend locally for Linux..."
+cd "$PROJECT_DIR/backend"
+
+# Cross-compile for Linux with pure-Go SQLite (no CGO required)
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o personal-notes-linux main.go
+
+success "Backend compiled successfully (pure-Go SQLite, no CGO)"
+
+# Step 3: Transfer files to server
+info "Step 3: Transferring files to server..."
 
 # Transfer backend (including compiled binary)
 rsync -avz --progress \
@@ -75,16 +84,13 @@ rsync -avz --progress \
   "$PROJECT_DIR/web/" \
   "${SERVER}:${DEPLOY_DIR}/web/"
 
+# Transfer ecosystem.config.js (PM2 process manager config)
+rsync -avz --progress \
+  -e "ssh -o StrictHostKeyChecking=no" \
+  "$PROJECT_DIR/ecosystem.config.js" \
+  "${SERVER}:${DEPLOY_DIR}/ecosystem.config.js"
+
 success "Files transferred successfully"
-
-# Step 3: Compile backend locally for Linux
-info "Step 3: Compiling backend locally for Linux..."
-cd "$PROJECT_DIR/backend"
-
-# Cross-compile for Linux with pure-Go SQLite (no CGO required)
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o personal-notes-linux main.go
-
-success "Backend compiled successfully (pure-Go SQLite, no CGO)"
 
 # Step 4: Install web dependencies
 info "Step 4: Installing web dependencies..."
