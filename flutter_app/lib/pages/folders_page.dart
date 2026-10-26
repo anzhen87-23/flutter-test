@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/folder.dart';
 import '../services/api_service.dart';
+import 'folder_detail_page.dart';
 
 class FoldersPage extends StatefulWidget {
   const FoldersPage({super.key});
@@ -211,8 +212,16 @@ class _FoldersPageState extends State<FoldersPage> {
                       final folder = _folders[index];
                       return Card(
                         child: InkWell(
-                          onTap: () {
-                            // 可以跳转到该文件夹的笔记列表
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    FolderDetailPage(folder: folder),
+                              ),
+                            );
+                            // 返回后刷新文件夹列表（笔记数可能变化）
+                            _loadFolders();
                           },
                           onLongPress: () => _showFolderOptions(folder),
                           child: Padding(

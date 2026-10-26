@@ -1,0 +1,6 @@
+backend/personal-notes-linux
+backend/personal-notes
+backend/personal-notes-local
+backend/*.db
+*.exe
+.DS_Store

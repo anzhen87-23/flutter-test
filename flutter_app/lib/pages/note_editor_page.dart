@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/note.dart';
 import '../models/folder.dart';
 import '../services/api_service.dart';
 
 class NoteEditorPage extends StatefulWidget {
   final int? noteId;
+  final int? initialFolderId;
 
-  const NoteEditorPage({super.key, this.noteId});
+  const NoteEditorPage({super.key, this.noteId, this.initialFolderId});
 
   @override
   State<NoteEditorPage> createState() => _NoteEditorPageState();
@@ -45,6 +45,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           _titleController.text = note.title;
           _contentController.text = note.content;
           _selectedFolderId = note.folderId;
+        }
+      } else {
+        // 新建模式：使用传入的初始文件夹
+        if (mounted) {
+          _selectedFolderId = widget.initialFolderId;
         }
       }
     } catch (e) {
@@ -142,7 +147,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   // 文件夹选择
                   if (_folders.isNotEmpty)
                     DropdownButtonFormField<int?>(
-                      value: _selectedFolderId,
+                      initialValue: _selectedFolderId,
                       decoration: const InputDecoration(
                         labelText: '文件夹',
                         border: OutlineInputBorder(),
