@@ -74,8 +74,16 @@ async function loadNotes(container, paginationContainer) {
     showLoading(container);
 
     try {
+        console.log('[notes] 开始加载笔记列表, page:', currentPage, 'folder:', currentFolder);
         const result = await notes.list(currentPage, 20, currentFolder);
+        console.log('[notes] API 响应:', result);
+
+        if (!result || !result.data) {
+            throw new Error('API 响应格式错误: ' + JSON.stringify(result));
+        }
+
         const { notes: noteList, total, page, page_size } = result.data;
+        console.log('[notes] 解析结果: noteList=', noteList, 'total=', total);
 
         if (!noteList || noteList.length === 0) {
             showEmpty(container, '📝', '还没有笔记，点击右上角创建吧');
@@ -144,7 +152,8 @@ async function loadNotes(container, paginationContainer) {
         });
 
     } catch (error) {
-        container.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
+        console.error('[notes] 加载失败:', error);
+        container.innerHTML = `<div class="empty-state"><p>加载失败: ${error.message}</p></div>`;
     }
 }
 

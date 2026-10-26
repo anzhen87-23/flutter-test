@@ -75,8 +75,10 @@ async function request(method, path, data = null, options = {}) {
     }
 
     try {
+        console.log('[api] 请求:', method, `${API_BASE}${path}`);
         const response = await fetch(`${API_BASE}${path}`, config);
         const result = await response.json();
+        console.log('[api] 响应状态:', response.status, '数据:', result);
 
         if (!response.ok) {
             // Token 过期或无效
