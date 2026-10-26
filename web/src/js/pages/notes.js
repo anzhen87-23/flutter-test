@@ -10,7 +10,7 @@ let currentPage = 1;
 let currentFolder = null;
 let folderList = [];
 
-export async function renderNotes(container) {
+export async function renderNotes(container, params) {
     container.innerHTML = `
         <div class="notes-header">
             <h2>我的笔记</h2>
@@ -29,8 +29,20 @@ export async function renderNotes(container) {
     const pagination = document.getElementById('notes-pagination');
     const folderFilter = document.getElementById('folder-filter');
 
+    // 从查询参数读取 folder_id
+    if (params && params.query && params.query.folder_id) {
+        currentFolder = parseInt(params.query.folder_id, 10);
+    } else {
+        currentFolder = null;
+    }
+
     // 加载文件夹列表
     await loadFolders(folderFilter);
+
+    // 设置文件夹筛选器的值
+    if (currentFolder) {
+        folderFilter.value = currentFolder.toString();
+    }
 
     // 加载笔记
     await loadNotes(notesList, pagination);

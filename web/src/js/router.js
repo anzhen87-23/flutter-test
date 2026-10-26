@@ -22,12 +22,21 @@ export function registerRoute(path, handler) {
 }
 
 /**
- * 获取当前路由路径
+ * 获取当前路由路径和查询参数
  */
 export function getCurrentPath() {
     const hash = window.location.hash.slice(1) || '/login';
-    // 去掉查询参数
-    return hash.split('?')[0];
+    const [path, queryString] = hash.split('?');
+    const params = {};
+
+    if (queryString) {
+        const urlParams = new URLSearchParams(queryString);
+        urlParams.forEach((value, key) => {
+            params[key] = value;
+        });
+    }
+
+    return { path: path.split('#')[0], query: params };
 }
 
 /**
@@ -84,7 +93,7 @@ function matchRoute(path) {
  * 处理路由变化
  */
 export function handleRoute() {
-    const path = getCurrentPath();
+    const { path, query } = getCurrentPath();
     const mainContent = document.getElementById('main-content');
     const header = document.getElementById('header');
 
@@ -113,7 +122,7 @@ export function handleRoute() {
     // 匹配并执行路由处理器
     const matched = matchRoute(path);
     if (matched) {
-        matched.handler(mainContent, matched.params);
+        matched.handler(mainContent, { ...matched.params, query });
     } else {
         // 404
         mainContent.innerHTML = `
