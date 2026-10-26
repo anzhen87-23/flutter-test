@@ -244,7 +244,7 @@ class _RegisterPageState extends State<RegisterPage>
                 onPressed: _phoneCountdown > 0
                     ? null
                     : () => _sendCode(_phoneController.text, 'register', true),
-                child: Text(_phoneCountdown > 0 ? '$_phoneCountdowns' : '发送验证码'),
+                child: Text(_phoneCountdown > 0 ? '$_phoneCountdown' : '发送验证码'),
               ),
             ],
           ),
@@ -324,7 +324,7 @@ class _RegisterPageState extends State<RegisterPage>
                 onPressed: _emailCountdown > 0
                     ? null
                     : () => _sendCode(_emailController.text, 'register', false),
-                child: Text(_emailCountdown > 0 ? '$_emailCountdowns' : '发送验证码'),
+                child: Text(_emailCountdown > 0 ? '$_emailCountdown' : '发送验证码'),
               ),
             ],
           ),

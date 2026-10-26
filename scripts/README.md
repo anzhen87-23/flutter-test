@@ -1,142 +1,117 @@
-# Deployment Scripts
+# Android 真机调试脚本
 
-This directory contains deployment automation scripts for the Personal Notes application.
-
-## Scripts
-
-### deploy.sh
-
-Full deployment script that automates the entire deployment process.
-
-**Usage:**
-```bash
-./scripts/deploy.sh
-```
-
-**What it does:**
-1. Commits and pushes code changes to git
-2. Transfers backend and web files to server (root@39.106.88.210)
-3. Compiles backend on server with CGO enabled (required for SQLite)
-4. Installs web dependencies
-5. Restarts services using PM2
-6. Runs health checks and verification tests
-
-**Requirements:**
-- SSH access to root@39.106.88.210
-- rsync installed locally
-- Go installed on server
-- PM2 installed on server
-- http-server installed on server
-
-## Manual Deployment
-
-If you need to deploy manually, follow these steps:
-
-### 1. Transfer Files
+## 快速开始
 
 ```bash
-# Backend
-rsync -avz --exclude='personal-notes' --exclude='notes.db' \
-  -e "ssh -o StrictHostKeyChecking=no" \
-  backend/ root@39.106.88.210:/root/app/backend/
+# 检查设备连接
+./scripts/android_debug.sh check
 
-# Web
-rsync -avz --exclude='node_modules' \
-  -e "ssh -o StrictHostKeyChecking=no" \
-  web/ root@39.106.88.210:/root/app/web/
+# 运行调试（推荐）
+./scripts/android_debug.sh run
+
+# 查看日志
+./scripts/android_debug.sh logs
 ```
 
-### 2. Compile Backend
+## 所有命令
+
+| 命令 | 功能 | 说明 |
+|---|---|---|
+| `check` | 检查设备 | 检测已连接的 Android 设备 |
+| `install` | 安装应用 | 构建并安装 debug APK |
+| `run` | 运行调试 | 启动应用，支持热重载 |
+| `logs` | 查看日志 | 实时显示应用日志 |
+| `clear` | 清除数据 | 清除应用数据和缓存 |
+| `uninstall` | 卸载应用 | 从设备卸载应用 |
+| `restart` | 重启 ADB | 重启 ADB 服务（解决连接问题） |
+
+## 使用流程
+
+### 1. 准备手机
+- 开启 **开发者选项**（连续点击版本号 7 次）
+- 开启 **USB 调试**
+- USB 连接模式选择 **文件传输（MTP）**
+- 连接电脑，允许 USB 调试
+
+### 2. 检查连接
+```bash
+./scripts/android_debug.sh check
+```
+
+如果未检测到设备：
+```bash
+./scripts/android_debug.sh restart
+```
+
+### 3. 运行调试
+```bash
+./scripts/android_debug.sh run
+```
+
+这会：
+- 自动构建 debug 版本
+- 安装到设备
+- 启动应用
+- 支持热重载（按 `r` 键）
+
+### 4. 查看日志
+```bash
+./scripts/android_debug.sh logs
+```
+
+实时显示 Flutter 应用日志，按 Ctrl+C 退出。
+
+## 热重载快捷键
+
+运行 `flutter run` 后：
+- `r` - 热重载（保持状态）
+- `R` - 热重启（重置状态）
+- `q` - 退出调试
+- `h` - 显示更多帮助
+
+## 常见问题
+
+### 设备未检测到
+
+1. **检查 USB 连接**
+   - 换一根数据线
+   - 换一个 USB 口
+
+2. **检查手机设置**
+   - USB 调试已开启
+   - USB 模式为"文件传输"
+   - 已信任此电脑
+
+3. **重启 ADB**
+   ```bash
+   ./scripts/android_debug.sh restart
+   ```
+
+### 安装失败
 
 ```bash
-ssh root@39.106.88.210 "cd /root/app/backend && CGO_ENABLED=1 go build -o personal-notes main.go"
+# 先卸载旧版本
+./scripts/android_debug.sh uninstall
+
+# 重新安装
+./scripts/android_debug.sh install
 ```
 
-### 3. Restart Services
+### 应用崩溃
 
 ```bash
-ssh root@39.106.88.210 "cd /root/app && pm2 restart all"
+# 清除应用数据
+./scripts/android_debug.sh clear
+
+# 重新运行
+./scripts/android_debug.sh run
 ```
 
-### 4. Verify Deployment
+## 包名
 
-```bash
-# Backend health
-curl http://39.106.88.210:8080/health
+当前应用包名：`com.an.zhen`
 
-# Web frontend
-curl http://39.106.88.210:3000/
-```
+## 相关脚本
 
-## Server Information
-
-- **Server:** root@39.106.88.210
-- **Backend Port:** 8080
-- **Web Port:** 3000
-- **Deploy Directory:** /root/app
-- **Logs:** /root/app/logs
-
-## PM2 Commands
-
-```bash
-pm2 status                    # Check service status
-pm2 logs                      # View all logs
-pm2 logs backend              # View backend logs
-pm2 logs web                  # View web logs
-pm2 restart all               # Restart all services
-pm2 stop all                  # Stop all services
-pm2 monit                     # Monitor services
-```
-
-## Troubleshooting
-
-### Backend won't start
-```bash
-# Check logs
-ssh root@39.106.88.210 "pm2 logs personal-notes-backend --lines 50"
-
-# Verify binary exists and is executable
-ssh root@39.106.88.210 "ls -lh /root/app/backend/personal-notes"
-
-# Check if port is in use
-ssh root@39.106.88.210 "netstat -tlnp | grep 8080"
-```
-
-### Web not accessible
-```bash
-# Check logs
-ssh root@39.106.88.210 "pm2 logs personal-notes-web --lines 50"
-
-# Verify http-server is installed
-ssh root@39.106.88.210 "which http-server"
-
-# Check if port is in use
-ssh root@39.106.88.210 "netstat -tlnp | grep 3000"
-```
-
-### Database errors
-```bash
-# Check database file
-ssh root@39.106.88.210 "ls -lh /root/app/backend/notes.db"
-
-# Backup database
-ssh root@39.106.88.210 "cp /root/app/backend/notes.db /root/app/backend/notes.db.backup"
-```
-
-## Rollback
-
-If deployment fails:
-
-```bash
-# On server, check git history
-ssh root@39.106.88.210 "cd /root/app && git log --oneline -5"
-
-# Revert to previous version
-ssh root@39.106.88.210 "cd /root/app && git checkout HEAD~1"
-
-# Recompile backend
-ssh root@39.106.88.210 "cd /root/app/backend && CGO_ENABLED=1 go build -o personal-notes main.go"
-
-# Restart services
-ssh root@39.106.88.210 "pm2 restart all"
-```
+- `../flutter_app/build_app.sh` - 发布版本打包脚本
+- `android_debug.sh` - 调试版本脚本（本文件）

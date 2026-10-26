@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../utils/validators.dart';
 import 'register_page.dart';
@@ -32,11 +33,20 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
 
+    final account = _accountController.text.trim();
+    final password = _passwordController.text;
+
+    debugPrint('════════════════════════════════════════════');
+    debugPrint('🔐 Login Attempt');
+    debugPrint('📱 Account: $account');
+    debugPrint('🔑 Password: ${'*' * password.length}');
+
     try {
-      await AuthApi.login(
-        _accountController.text.trim(),
-        _passwordController.text,
-      );
+      final user = await AuthApi.login(account, password);
+
+      debugPrint('✅ Login Success');
+      debugPrint('👤 User: ${user.toJson()}');
+      debugPrint('════════════════════════════════════════════');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -45,6 +55,9 @@ class _LoginPageState extends State<LoginPage> {
         widget.onLoginSuccess();
       }
     } catch (e) {
+      debugPrint('❌ Login Failed: $e');
+      debugPrint('════════════════════════════════════════════');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),

@@ -149,7 +149,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: _countdown > 0 ? null : _sendCode,
-                    child: Text(_countdown > 0 ? '$_countdowns' : '发送验证码'),
+                    child: Text(_countdown > 0 ? '$_countdown' : '发送验证码'),
                   ),
                 ],
               ),

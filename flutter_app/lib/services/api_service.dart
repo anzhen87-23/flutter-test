@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -7,7 +8,7 @@ import '../models/folder.dart';
 
 /// API 服务类
 class ApiService {
-  static const String baseUrl = 'http://localhost:8080/api';
+  static const String baseUrl = 'http://39.106.88.210:8080/api';
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_info';
 
@@ -63,6 +64,15 @@ class ApiService {
     final url = Uri.parse('$baseUrl$path');
     final token = await getToken();
 
+    debugPrint('════════════════════════════════════════════');
+    debugPrint('🌐 API Request: $method $url');
+    if (data != null) {
+      debugPrint('📤 Request Data: $data');
+    }
+    if (token != null && token.isNotEmpty) {
+      debugPrint('🔑 Token: ${token.substring(0, 20)}...');
+    }
+
     final headers = <String, String>{
       'Content-Type': 'application/json',
     };
@@ -99,6 +109,9 @@ class ApiService {
           throw Exception('不支持的请求方法: $method');
       }
 
+      debugPrint('📥 Response Status: ${response.statusCode}');
+      debugPrint('📥 Response Body: ${response.body}');
+
       final result = jsonDecode(response.body);
 
       if (response.statusCode == 401) {
@@ -107,11 +120,16 @@ class ApiService {
       }
 
       if (response.statusCode >= 400) {
+        debugPrint('❌ API Error: ${result['message'] ?? '请求失败'}');
         throw Exception(result['message'] ?? '请求失败');
       }
 
+      debugPrint('✅ API Success');
+      debugPrint('════════════════════════════════════════════');
       return result;
     } catch (e) {
+      debugPrint('❌ Request Failed: $e');
+      debugPrint('════════════════════════════════════════════');
       if (e is Exception && e.toString().contains('SocketException')) {
         throw Exception('网络连接失败，请检查后端服务是否启动');
       }
@@ -363,7 +381,29 @@ class ProfileApi {
 
   /// 上传头像
   static Future<String> uploadAvatar(String filePath) async {
-    // 这里简化处理，实际应该用 multipart/form-data
-    throw UnimplementedError('头像上传功能待实现');
+    final url = Uri.parse('${ApiService.baseUrl}/profile/avatar');
+    final token = await ApiService.getToken();
+
+    final request = http.MultipartRequest('POST', url);
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(await http.MultipartFile.fromPath('avatar', filePath));
+
+    final response = await request.send();
+    final result = jsonDecode(await response.stream.bytesToString());
+
+    if (response.statusCode == 401) {
+      await ApiService.clearToken();
+      throw Exception('登录已过期，请重新登录');
+    }
+
+    if (response.statusCode >= 400) {
+      throw Exception(result['message'] ?? '上传失败');
+    }
+
+    return result['data']['avatar_url'] as String;
   }
 }

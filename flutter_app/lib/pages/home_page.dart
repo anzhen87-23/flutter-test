@@ -16,10 +16,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
+  List<Widget> get _pages => [
     const NotesListPage(),
     const FoldersPage(),
-    ProfilePage(),
+    ProfilePage(onLogout: widget.onLogout),
   ];
 
   Future<void> _logout() async {
