@@ -45,7 +45,11 @@ export async function renderNoteEditor(container, params) {
 
     // 如果是编辑模式，加载笔记数据
     if (!isNew && noteId) {
-        showLoading(container.querySelector('.editor-container'));
+        // 显示加载遮罩而不是替换内容
+        const editorContainer = container.querySelector('.editor-container');
+        editorContainer.style.opacity = '0.5';
+        editorContainer.style.pointerEvents = 'none';
+
         try {
             const result = await notes.get(noteId);
             const note = result.data;
@@ -56,6 +60,10 @@ export async function renderNoteEditor(container, params) {
             showToast(error.message || '加载笔记失败', 'error');
             navigate('/notes');
             return;
+        } finally {
+            // 恢复表单
+            editorContainer.style.opacity = '1';
+            editorContainer.style.pointerEvents = 'auto';
         }
     }
 
