@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/note.dart';
@@ -9,6 +10,7 @@ import '../models/folder.dart';
 /// API 服务类
 class ApiService {
   static const String baseUrl = 'http://39.106.88.210:8080/api';
+  static const String serverUrl = 'http://39.106.88.210:8080';
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_info';
 
@@ -384,26 +386,79 @@ class ProfileApi {
     final url = Uri.parse('${ApiService.baseUrl}/profile/avatar');
     final token = await ApiService.getToken();
 
+    // 根据文件扩展名推断 Content-Type
+    final ext = filePath.split('.').last.toLowerCase();
+    String mimeType;
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        mimeType = 'image/jpeg';
+        break;
+      case 'png':
+        mimeType = 'image/png';
+        break;
+      case 'gif':
+        mimeType = 'image/gif';
+        break;
+      default:
+        mimeType = 'application/octet-stream';
+    }
+
+    debugPrint('════════════════════════════════════════════');
+    debugPrint('📤 [Avatar Upload] 开始上传');
+    debugPrint('📤 [Avatar Upload] URL: $url');
+    debugPrint('📤 [Avatar Upload] 文件路径: $filePath');
+    debugPrint('📤 [Avatar Upload] 文件扩展名: $ext');
+    debugPrint('📤 [Avatar Upload] MIME 类型: $mimeType');
+    debugPrint('📤 [Avatar Upload] Token: ${token != null && token.isNotEmpty ? "${token.substring(0, 20)}..." : "无"}');
+
     final request = http.MultipartRequest('POST', url);
 
     if (token != null && token.isNotEmpty) {
       request.headers['Authorization'] = 'Bearer $token';
     }
 
-    request.files.add(await http.MultipartFile.fromPath('avatar', filePath));
+    // 显式设置 Content-Type，避免默认为 application/octet-stream
+    request.files.add(await http.MultipartFile.fromPath(
+      'avatar',
+      filePath,
+      contentType: MediaType.parse(mimeType),
+    ));
 
-    final response = await request.send();
-    final result = jsonDecode(await response.stream.bytesToString());
+    debugPrint('📤 [Avatar Upload] 请求已发送，等待响应...');
 
-    if (response.statusCode == 401) {
-      await ApiService.clearToken();
-      throw Exception('登录已过期，请重新登录');
+    try {
+      final streamedResponse = await request.send();
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      debugPrint('📥 [Avatar Upload] 响应状态码: ${streamedResponse.statusCode}');
+      debugPrint('📥 [Avatar Upload] 响应头: ${streamedResponse.headers}');
+      debugPrint('📥 [Avatar Upload] 响应体: $responseBody');
+
+      final result = jsonDecode(responseBody);
+
+      if (streamedResponse.statusCode == 401) {
+        await ApiService.clearToken();
+        throw Exception('登录已过期，请重新登录');
+      }
+
+      if (streamedResponse.statusCode >= 400) {
+        final message = result['message'] ?? '上传失败 (HTTP ${streamedResponse.statusCode})';
+        debugPrint('❌ [Avatar Upload] 上传失败: $message');
+        throw Exception(message);
+      }
+
+      final avatarUrl = result['data']['avatar_url'] as String;
+      debugPrint('✅ [Avatar Upload] 上传成功: $avatarUrl');
+      debugPrint('════════════════════════════════════════════');
+      return avatarUrl;
+    } catch (e) {
+      debugPrint('❌ [Avatar Upload] 请求异常: $e');
+      debugPrint('════════════════════════════════════════════');
+      if (e is Exception && e.toString().contains('SocketException')) {
+        throw Exception('网络连接失败，请检查后端服务是否启动');
+      }
+      rethrow;
     }
-
-    if (response.statusCode >= 400) {
-      throw Exception(result['message'] ?? '上传失败');
-    }
-
-    return result['data']['avatar_url'] as String;
   }
 }

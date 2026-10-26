@@ -567,7 +567,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   radius: 40,
                                   backgroundColor: Colors.grey[300],
                                   backgroundImage: _user!.avatarUrl.isNotEmpty
-                                      ? NetworkImage('http://39.106.88.210:8080${_user!.avatarUrl}')
+                                      ? NetworkImage('${ApiService.serverUrl}${_user!.avatarUrl}')
                                       : null,
                                   child: _user!.avatarUrl.isEmpty
                                       ? const Icon(Icons.person, size: 40)

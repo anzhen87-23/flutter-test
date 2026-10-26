@@ -1,11 +1,28 @@
 package routes
 
 import (
+	"log"
+	"os"
+	"path/filepath"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"personal-notes-backend/handlers"
 	"personal-notes-backend/middleware"
 )
+
+// getUploadDir 获取头像上传目录的绝对路径（与 handlers 包中保持一致）
+func getUploadDir() string {
+	if dir := os.Getenv("UPLOAD_DIR"); dir != "" {
+		return dir
+	}
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Printf("[routes] 获取可执行文件路径失败: %v, 回退到 CWD", err)
+		return "uploads/avatars"
+	}
+	return filepath.Join(filepath.Dir(exePath), "uploads", "avatars")
+}
 
 // SetupRouter 配置所有路由
 func SetupRouter(db *gorm.DB) *gin.Engine {
@@ -24,6 +41,16 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// 静态文件服务：头像上传目录
+	// 使用绝对路径，确保无论 CWD 在哪都能正确访问
+	uploadDir := getUploadDir()
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[routes] 创建上传目录失败: %v", err)
+	} else {
+		log.Printf("[routes] 头像静态服务已挂载: /uploads/avatars -> %s", uploadDir)
+		r.Static("/uploads/avatars", uploadDir)
+	}
 
 	// API 路由组
 	api := r.Group("/api")
