@@ -9,7 +9,7 @@ import { navigate } from '../router.js';
 export function renderLogin(container) {
     container.innerHTML = `
         <div class="card auth-card">
-            <h2>安振个人笔记</h2>
+            <h2><img src="/favicon.png" alt="logo" style="width: 36px; height: 36px; margin-right: 10px; vertical-align: middle;">安振个人笔记</h2>
             <form id="login-form">
                 <div class="form-group">
                     <label class="form-label">账号</label>
