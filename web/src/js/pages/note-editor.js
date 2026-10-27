@@ -38,7 +38,7 @@ export async function renderNoteEditor(container, params) {
                 </button>
                 <input type="file" id="image-input" accept="image/*" style="display: none;">
                 <button type="button" class="toolbar-icon-btn" id="btn-upload-video" title="插入视频">
-                    <span class="toolbar-icon"></span>
+                    <span class="toolbar-icon">🎬</span>
                     <span class="toolbar-label">视频</span>
                 </button>
                 <input type="file" id="video-input" accept="video/*" style="display: none;">
