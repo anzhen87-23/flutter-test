@@ -1,5 +1,5 @@
 /**
- * 笔记编辑页面（支持图片/视频上传、Markdown 预览、分享）
+ * 笔记编辑页面（支持图片/视频上传、Markdown 实时预览、分享）
  */
 
 import { notes, folders } from '../modules/api.js';
@@ -34,8 +34,8 @@ export async function renderNoteEditor(container, params) {
                     <textarea id="note-content" class="editor-content"
                         placeholder="写点什么..."></textarea>
                 </div>
-                <!-- 预览区 -->
-                <div id="editor-preview-pane" class="editor-preview" style="display: none;">
+                <!-- 实时预览区 -->
+                <div id="editor-preview-pane" class="editor-preview">
                 </div>
             </div>
             <!-- 底部工具栏 -->
@@ -46,7 +46,7 @@ export async function renderNoteEditor(container, params) {
                 </button>
                 <input type="file" id="image-input" accept="image/*" style="display: none;">
                 <button type="button" class="toolbar-icon-btn" id="btn-upload-video" title="插入视频">
-                    <span class="toolbar-icon">🎬</span>
+                    <span class="toolbar-icon"></span>
                     <span class="toolbar-label">视频</span>
                 </button>
                 <input type="file" id="video-input" accept="video/*" style="display: none;">
@@ -107,12 +107,23 @@ export async function renderNoteEditor(container, params) {
     backBtn.addEventListener('click', goBack);
     cancelBtn.addEventListener('click', goBack);
 
+    // === 实时预览更新 ===
+    let previewTimer = null;
+    const updatePreview = () => {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(() => {
+            previewPane.innerHTML = renderMarkdown(contentInput.value);
+        }, 100);
+    };
+
     // === 编辑/预览模式切换 ===
     editModeBtn.addEventListener('click', () => {
         editModeBtn.classList.add('active');
         previewModeBtn.classList.remove('active');
         editPane.style.display = '';
-        previewPane.style.display = 'none';
+        previewPane.style.display = '';
+        previewPane.classList.remove('editor-preview-full');
+        updatePreview();
     });
 
     previewModeBtn.addEventListener('click', () => {
@@ -120,7 +131,8 @@ export async function renderNoteEditor(container, params) {
         editModeBtn.classList.remove('active');
         editPane.style.display = 'none';
         previewPane.style.display = '';
-        previewPane.innerHTML = renderMarkdown(contentInput.value);
+        previewPane.classList.add('editor-preview-full');
+        updatePreview();
     });
 
     // === 图片上传 ===
@@ -147,6 +159,7 @@ export async function renderNoteEditor(container, params) {
             const { url } = result.data;
             const markdownImage = `![${file.name}](${url})\n`;
             insertAtCursor(contentInput, markdownImage);
+            updatePreview();
             showToast('图片已插入', 'success');
         } catch (error) {
             showToast(error.message || '上传图片失败', 'error');
@@ -181,6 +194,7 @@ export async function renderNoteEditor(container, params) {
             const { url } = result.data;
             const markdownVideo = `<video controls src="${url}" style="max-width:100%;border-radius:8px;margin:8px 0;">你的浏览器不支持视频播放</video>\n`;
             insertAtCursor(contentInput, markdownVideo);
+            updatePreview();
             showToast('视频已插入', 'success');
         } catch (error) {
             showToast(error.message || '上传视频失败', 'error');
@@ -197,13 +211,9 @@ export async function renderNoteEditor(container, params) {
         const content = contentInput.value.trim();
         const shareText = `${title}\n\n${content}`;
 
-        // 优先使用 Web Share API
         if (navigator.share) {
             try {
-                await navigator.share({
-                    title: title,
-                    text: shareText,
-                });
+                await navigator.share({ title, text: shareText });
                 showToast('分享成功', 'success');
             } catch (err) {
                 if (err.name !== 'AbortError') {
@@ -259,32 +269,28 @@ export async function renderNoteEditor(container, params) {
             if (isNew) return;
             const title = titleInput.value.trim();
             if (!title) return;
-
             try {
                 await notes.update(noteId, {
                     title,
                     content: contentInput.value,
                     folder_id: folderSelect.value ? parseInt(folderSelect.value, 10) : null,
                 });
-            } catch (e) {
-                // 静默失败
-            }
+            } catch (e) {}
         }, 2000);
     };
 
-    titleInput.addEventListener('input', autoSave);
-    contentInput.addEventListener('input', autoSave);
+    titleInput.addEventListener('input', () => { autoSave(); updatePreview(); });
+    contentInput.addEventListener('input', () => { autoSave(); updatePreview(); });
 }
 
 /**
- * 简易 Markdown 渲染（支持图片、视频、标题、粗体、斜体、链接）
+ * Markdown 渲染（支持图片、视频、标题、粗体、斜体、链接、列表）
  */
 function renderMarkdown(content) {
     if (!content) return '<p style="color: var(--text-secondary);">暂无内容</p>';
 
     let html = escapeHtml(content);
 
-    // HTML 标签（如 <video>）先转义后还原
     // 还原 <video> 标签
     html = html.replace(/&lt;video(.*?)&gt;(.*?)&lt;\/video&gt;/g, '<video$1>$2</video>');
 
@@ -304,10 +310,14 @@ function renderMarkdown(content) {
     html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
     html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
 
-    // 粗体
+    // 粗体、斜体
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    // 斜体
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // 有序列表
+    html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+    // 无序列表
+    html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
 
     // 换行
     html = html.replace(/\n/g, '<br>');
@@ -322,7 +332,6 @@ function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
         showToast('已复制到剪贴板', 'success');
     }).catch(() => {
-        // fallback
         const textarea = document.createElement('textarea');
         textarea.value = text;
         document.body.appendChild(textarea);
@@ -358,7 +367,6 @@ async function loadFolderOptions(selectEl) {
     try {
         const result = await folders.list();
         const folderList = result.data || [];
-
         folderList.forEach(folder => {
             const option = document.createElement('option');
             option.value = folder.id;
