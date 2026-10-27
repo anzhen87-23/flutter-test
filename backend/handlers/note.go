@@ -2,10 +2,15 @@ package handlers
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -223,6 +228,11 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 		return
 	}
 
+	// 删除笔记关联的图片文件
+	if note.Content != "" {
+		deleteNoteImages(note.Content)
+	}
+
 	if err := h.DB.Delete(&note).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败"})
 		return
@@ -233,4 +243,155 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 		"message": "删除成功",
 		"data":    nil,
 	})
+}
+
+// UploadNoteImage 上传笔记图片
+func (h *NoteHandler) UploadNoteImage(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	userIDStr := c.GetString("user_id")
+
+	log.Printf("[note-image] 开始上传图片: user_id=%s", userIDStr)
+	_ = userID // 用于后续可能的权限校验
+
+	// 读取 multipart 文件
+	file, err := c.FormFile("image")
+	if err != nil {
+		log.Printf("[note-image] 读取文件字段失败: err=%v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请上传图片文件"})
+		return
+	}
+
+	// 限制文件大小（10MB）
+	if file.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "图片大小不能超过10MB"})
+		return
+	}
+
+	// 检查文件类型
+	contentType := file.Header.Get("Content-Type")
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	validImageTypes := map[string]bool{
+		"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true,
+	}
+	validExtensions := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
+	}
+
+	if !validImageTypes[contentType] && !validExtensions[ext] {
+		log.Printf("[note-image] 不支持的文件类型: content_type=%s, ext=%s", contentType, ext)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仅支持 JPG/PNG/GIF/WEBP 格式"})
+		return
+	}
+
+	// 确保上传目录存在
+	uploadDir := getNoteUploadDir()
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[note-image] 创建目录失败: err=%v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "服务器存储初始化失败"})
+		return
+	}
+
+	// 生成安全的文件名
+	safeFilename := fmt.Sprintf("%s_%d%s", userIDStr, time.Now().UnixNano(), ext)
+	savePath := filepath.Join(uploadDir, safeFilename)
+
+	if err := c.SaveUploadedFile(file, savePath); err != nil {
+		log.Printf("[note-image] 保存文件失败: err=%v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存文件失败"})
+		return
+	}
+
+	imageURL := "/uploads/notes/" + safeFilename
+	log.Printf("[note-image] 上传成功: url=%s", imageURL)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "上传成功",
+		"data": gin.H{
+			"url":      imageURL,
+			"filename": safeFilename,
+			"size":     file.Size,
+		},
+	})
+}
+
+// DeleteNoteImage 删除笔记图片
+func (h *NoteHandler) DeleteNoteImage(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	filename := c.Param("filename")
+
+	// 防止路径遍历
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的文件名"})
+		return
+	}
+
+	filePath := filepath.Join(getNoteUploadDir(), filename)
+
+	// 验证文件存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "图片不存在"})
+		return
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		log.Printf("[note-image] 删除文件失败: user_id=%v, file=%s, err=%v", userID, filename, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败"})
+		return
+	}
+
+	log.Printf("[note-image] 删除成功: user_id=%v, file=%s", userID, filename)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "删除成功",
+	})
+}
+
+// getNoteUploadDir 获取笔记图片上传目录
+func getNoteUploadDir() string {
+	if dir := os.Getenv("NOTES_UPLOAD_DIR"); dir != "" {
+		return dir
+	}
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Printf("[note-image] 获取可执行文件路径失败: %v, 回退到 CWD", err)
+		return "uploads/notes"
+	}
+	return filepath.Join(filepath.Dir(exePath), "uploads", "notes")
+}
+
+// deleteNoteImages 从 HTML 内容中提取并删除所有笔记图片
+func deleteNoteImages(content string) {
+	// 简单提取 /uploads/notes/ 开头的图片路径
+	prefix := "/uploads/notes/"
+	uploadDir := getNoteUploadDir()
+
+	remaining := content
+	for {
+		idx := strings.Index(remaining, prefix)
+		if idx == -1 {
+			break
+		}
+		remaining = remaining[idx+len(prefix):]
+
+		// 提取文件名（到引号、空格、括号或结尾）
+		end := len(remaining)
+		for i, ch := range remaining {
+			if ch == '"' || ch == '\'' || ch == ' ' || ch == ')' || ch == '>' || ch == '&' {
+				end = i
+				break
+			}
+		}
+		filename := remaining[:end]
+
+		// 删除文件
+		filePath := filepath.Join(uploadDir, filename)
+		if err := os.Remove(filePath); err != nil {
+			log.Printf("[note-image] 清理图片失败: %s, err=%v", filePath, err)
+		} else {
+			log.Printf("[note-image] 已清理图片: %s", filePath)
+		}
+
+		remaining = remaining[end:]
+	}
 }

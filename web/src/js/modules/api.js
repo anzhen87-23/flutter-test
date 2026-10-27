@@ -186,6 +186,41 @@ export const notes = {
     delete(id) {
         return request('DELETE', `/notes/${id}`);
     },
+
+    /**
+     * 上传笔记图片
+     */
+    async uploadImage(file) {
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const headers = {};
+        const token = getToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        console.log('[api] 上传笔记图片:', file.name, file.size, 'bytes');
+        const response = await fetch(`${API_BASE}/notes/upload-image`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        const result = await response.json();
+        console.log('[api] 上传图片响应:', result);
+        if (!response.ok) {
+            throw new Error(result.message || '上传图片失败');
+        }
+        return result;
+    },
+
+    /**
+     * 删除笔记图片
+     */
+    deleteImage(filename) {
+        return request('DELETE', `/note-images/${filename}`);
+    },
 };
 
 // ===== 文件夹 API =====

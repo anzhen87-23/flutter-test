@@ -295,6 +295,89 @@ class NotesApi {
   static Future<void> delete(int id) async {
     await ApiService.request('DELETE', '/notes/$id');
   }
+
+  /// 上传笔记图片
+  static Future<Map<String, dynamic>> uploadImage(String filePath) async {
+    final url = Uri.parse('${ApiService.baseUrl}/notes/upload-image');
+    final token = await ApiService.getToken();
+
+    // 根据文件扩展名推断 Content-Type
+    final ext = filePath.split('.').last.toLowerCase();
+    String mimeType;
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        mimeType = 'image/jpeg';
+        break;
+      case 'png':
+        mimeType = 'image/png';
+        break;
+      case 'gif':
+        mimeType = 'image/gif';
+        break;
+      case 'webp':
+        mimeType = 'image/webp';
+        break;
+      default:
+        mimeType = 'application/octet-stream';
+    }
+
+    debugPrint('════════════════════════════════════════════');
+    debugPrint('📤 [NoteImage Upload] 开始上传');
+    debugPrint('📤 [NoteImage Upload] URL: $url');
+    debugPrint('📤 [NoteImage Upload] 文件路径: $filePath');
+    debugPrint('📤 [NoteImage Upload] MIME 类型: $mimeType');
+
+    final request = http.MultipartRequest('POST', url);
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(await http.MultipartFile.fromPath(
+      'image',
+      filePath,
+      contentType: MediaType.parse(mimeType),
+    ));
+
+    try {
+      final streamedResponse = await request.send();
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      debugPrint('📥 [NoteImage Upload] 响应状态码: ${streamedResponse.statusCode}');
+      debugPrint('📥 [NoteImage Upload] 响应体: $responseBody');
+
+      final result = jsonDecode(responseBody);
+
+      if (streamedResponse.statusCode == 401) {
+        await ApiService.clearToken();
+        throw Exception('登录已过期，请重新登录');
+      }
+
+      if (streamedResponse.statusCode >= 400) {
+        final message = result['message'] ?? '上传失败 (HTTP ${streamedResponse.statusCode})';
+        debugPrint('❌ [NoteImage Upload] 上传失败: $message');
+        throw Exception(message);
+      }
+
+      final data = result['data'] as Map<String, dynamic>;
+      debugPrint('✅ [NoteImage Upload] 上传成功: ${data['url']}');
+      debugPrint('════════════════════════════════════════════');
+      return data;
+    } catch (e) {
+      debugPrint('❌ [NoteImage Upload] 请求异常: $e');
+      debugPrint('════════════════════════════════════════════');
+      if (e is Exception && e.toString().contains('SocketException')) {
+        throw Exception('网络连接失败，请检查后端服务是否启动');
+      }
+      rethrow;
+    }
+  }
+
+  /// 删除笔记图片
+  static Future<void> deleteImage(String filename) async {
+    await ApiService.request('DELETE', '/note-images/$filename');
+  }
 }
 
 /// 文件夹 API

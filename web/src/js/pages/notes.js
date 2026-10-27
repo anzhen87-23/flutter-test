@@ -112,7 +112,7 @@ async function loadNotes(container, paginationContainer) {
                         <span class="note-card-time">${formatDate(note.updated_at)}</span>
                     </div>
                     ${note.content ? `
-                        <div class="note-card-content">${escapeHtml(note.content)}</div>
+                        <div class="note-card-content">${renderNoteContent(note.content)}</div>
                     ` : ''}
                     <div class="note-card-footer">
                         ${folderName ? `<span class="note-folder-tag">📁 ${escapeHtml(folderName)}</span>` : '<span></span>'}
@@ -176,6 +176,30 @@ function getFolderName(folderId) {
     if (!folderId) return null;
     const folder = folderList.find(f => f.id === folderId);
     return folder ? folder.name : null;
+}
+
+/**
+ * 渲染笔记内容预览（支持 Markdown 图片）
+ * 将 ![alt](url) 转为 <img>，其余文本做转义后截断
+ */
+function renderNoteContent(content) {
+    if (!content) return '';
+
+    // 先转义 HTML
+    let safe = escapeHtml(content);
+
+    // 把 ![alt](url) 替换为 <img> 标签
+    const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    safe = safe.replace(imgRegex, (match, alt, url) => {
+        return `<img src="${url}" alt="${alt}" class="note-preview-img" loading="lazy">`;
+    });
+
+    // 去掉其他 markdown 语法符号（简化显示）
+    safe = safe.replace(/#{1,6}\s/g, '');         // 标题 ##
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '$1');  // 粗体
+    safe = safe.replace(/\*(.+?)\*/g, '$1');       // 斜体
+
+    return safe;
 }
 
 /**

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/folder.dart';
 import '../services/api_service.dart';
 
@@ -15,10 +16,12 @@ class NoteEditorPage extends StatefulWidget {
 class _NoteEditorPageState extends State<NoteEditorPage> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final _imagePicker = ImagePicker();
   List<Folder> _folders = [];
   int? _selectedFolderId;
   bool _loading = false;
   bool _saving = false;
+  bool _uploading = false;
 
   bool get _isNew => widget.noteId == null;
 
@@ -121,6 +124,69 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
   }
 
+  /// 选择并上传图片
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image == null) return; // 用户取消
+
+      debugPrint('📷 [Image Pick] 选择图片: ${image.path}');
+
+      setState(() => _uploading = true);
+
+      // 上传图片
+      final result = await NotesApi.uploadImage(image.path);
+      final url = result['url'] as String;
+
+      debugPrint('📷 [Image Upload] 成功: $url');
+
+      // 在光标位置插入 Markdown 图片语法
+      _insertAtCursor('![图片]($url)\n');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片已插入'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [Image Upload] 失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('上传图片失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
+    }
+  }
+
+  /// 在光标位置插入文本
+  void _insertAtCursor(String text) {
+    final controller = _contentController;
+    final selection = controller.selection;
+    final currentText = controller.text;
+
+    final start = selection.start >= 0 ? selection.start : currentText.length;
+    final end = selection.end >= 0 ? selection.end : currentText.length;
+
+    final before = currentText.substring(0, start);
+    final after = currentText.substring(end);
+
+    controller.text = before + text + after;
+
+    // 移动光标到插入文本之后
+    final newCursorPos = start + text.length;
+    controller.selection = TextSelection.collapsed(offset: newCursorPos);
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -134,6 +200,19 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       appBar: AppBar(
         title: Text(_isNew ? '新建笔记' : '编辑笔记'),
         actions: [
+          // 图片上传按钮
+          IconButton(
+            icon: _uploading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.image),
+            tooltip: '插入图片',
+            onPressed: _uploading ? null : _pickAndUploadImage,
+          ),
+          // 保存按钮
           IconButton(
             icon: _saving
                 ? const SizedBox(
@@ -198,7 +277,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                       textAlignVertical: TextAlignVertical.top,
                       decoration: const InputDecoration(
                         labelText: '内容',
-                        hintText: '写点什么...',
+                        hintText: '写点什么... 点击右上角🖼️插入图片',
                         border: OutlineInputBorder(),
                       ),
                     ),

@@ -1,9 +1,9 @@
 /**
- * 笔记编辑页面
+ * 笔记编辑页面（支持图片上传）
  */
 
 import { notes, folders } from '../modules/api.js';
-import { showToast, showLoading, escapeHtml } from '../modules/ui.js';
+import { showToast, escapeHtml } from '../modules/ui.js';
 import { navigate } from '../router.js';
 
 export async function renderNoteEditor(container, params) {
@@ -24,8 +24,16 @@ export async function renderNoteEditor(container, params) {
                     <option value="">未分类</option>
                 </select>
             </div>
+            <!-- 图片上传工具栏 -->
+            <div class="editor-toolbar">
+                <button type="button" class="toolbar-btn" id="btn-upload-image" title="插入图片">
+                    🖼️ 图片
+                </button>
+                <input type="file" id="image-input" accept="image/*" style="display: none;">
+                <span class="toolbar-hint">支持 JPG/PNG/GIF/WEBP，最大 10MB</span>
+            </div>
             <textarea id="note-content" class="editor-content"
-                placeholder="写点什么..."></textarea>
+                placeholder="写点什么... 可以点击工具栏插入图片"></textarea>
             <div class="editor-actions">
                 <button class="btn" id="btn-cancel">取消</button>
                 <button class="btn btn-primary" id="btn-save">保存</button>
@@ -39,13 +47,14 @@ export async function renderNoteEditor(container, params) {
     const saveBtn = document.getElementById('btn-save');
     const cancelBtn = document.getElementById('btn-cancel');
     const backBtn = document.getElementById('btn-back');
+    const uploadBtn = document.getElementById('btn-upload-image');
+    const imageInput = document.getElementById('image-input');
 
     // 加载文件夹列表
     await loadFolderOptions(folderSelect);
 
     // 如果是编辑模式，加载笔记数据
     if (!isNew && noteId) {
-        // 显示加载遮罩而不是替换内容
         const editorContainer = container.querySelector('.editor-container');
         editorContainer.style.opacity = '0.5';
         editorContainer.style.pointerEvents = 'none';
@@ -61,7 +70,6 @@ export async function renderNoteEditor(container, params) {
             navigate('/notes');
             return;
         } finally {
-            // 恢复表单
             editorContainer.style.opacity = '1';
             editorContainer.style.pointerEvents = 'auto';
         }
@@ -71,6 +79,49 @@ export async function renderNoteEditor(container, params) {
     const goBack = () => navigate('/notes');
     backBtn.addEventListener('click', goBack);
     cancelBtn.addEventListener('click', goBack);
+
+    // 图片上传按钮
+    uploadBtn.addEventListener('click', () => {
+        imageInput.click();
+    });
+
+    // 图片选择后上传
+    imageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        console.log('[editor] 选择图片:', file.name, file.size, 'bytes');
+
+        // 验证文件大小
+        if (file.size > 10 * 1024 * 1024) {
+            showToast('图片大小不能超过 10MB', 'error');
+            imageInput.value = '';
+            return;
+        }
+
+        uploadBtn.disabled = true;
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '⏳ 上传中...';
+
+        try {
+            const result = await notes.uploadImage(file);
+            const { url, filename } = result.data;
+
+            // 在光标位置插入 Markdown 图片语法
+            const markdownImage = `![${file.name}](${url})\n`;
+            insertAtCursor(contentInput, markdownImage);
+
+            console.log('[editor] 图片插入成功:', url);
+            showToast('图片已插入', 'success');
+        } catch (error) {
+            console.error('[editor] 上传图片失败:', error);
+            showToast(error.message || '上传图片失败', 'error');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = originalText;
+            imageInput.value = '';
+        }
+    });
 
     // 保存
     saveBtn.addEventListener('click', async () => {
@@ -95,7 +146,7 @@ export async function renderNoteEditor(container, params) {
                 await notes.update(noteId, {
                     title,
                     content: contentInput.value,
-                    folder_id: folderId ? parseInt(folderId) : null,
+                    folder_id: folderId,
                 });
                 showToast('保存成功', 'success');
             }
@@ -113,7 +164,7 @@ export async function renderNoteEditor(container, params) {
     const autoSave = () => {
         clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(async () => {
-            if (isNew) return; // 新建不自动保存
+            if (isNew) return;
             const title = titleInput.value.trim();
             if (!title) return;
 
@@ -121,7 +172,7 @@ export async function renderNoteEditor(container, params) {
                 await notes.update(noteId, {
                     title,
                     content: contentInput.value,
-                    folder_id: folderSelect.value ? parseInt(folderSelect.value) : null,
+                    folder_id: folderSelect.value ? parseInt(folderSelect.value, 10) : null,
                 });
             } catch (e) {
                 // 静默失败
@@ -131,6 +182,26 @@ export async function renderNoteEditor(container, params) {
 
     titleInput.addEventListener('input', autoSave);
     contentInput.addEventListener('input', autoSave);
+}
+
+/**
+ * 在 textarea 光标位置插入文本
+ */
+function insertAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+
+    textarea.value = before + text + after;
+
+    // 移动光标到插入文本之后
+    const newCursorPos = start + text.length;
+    textarea.setSelectionRange(newCursorPos, newCursorPos);
+    textarea.focus();
+
+    // 触发 input 事件以启动自动保存
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /**
