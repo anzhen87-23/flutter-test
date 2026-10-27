@@ -338,85 +338,61 @@ a:hover { color: var(--primary-hover); }
     flex-direction: column;
 }
 
-/* 编辑模式下：textarea + 实时预览 上下布局 */
-#editor-edit-pane {
-    display: flex;
-    flex-direction: column;
+/* 所见即所得编辑器 */
+.wysiwyg-editor {
     flex: 1;
-    min-height: 0;
-}
-
-#editor-edit-pane .editor-content {
-    min-height: 200px;
-    max-height: 45vh;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px;
+    min-height: 300px;
     font-size: 15px;
     line-height: 1.8;
-    resize: vertical;
-    width: 100%;
+    outline: none;
+    word-break: break-word;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-y: auto;
 }
 
-#editor-edit-pane .editor-content:focus {
-    outline: none;
+.wysiwyg-editor:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
-/* 实时预览面板 */
-#editor-preview-pane {
-    border-top: 1px dashed var(--border);
-    padding: 12px 0;
-    margin-top: 8px;
-    flex: 1;
-    overflow-y: auto;
-    min-height: 100px;
+.wysiwyg-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-secondary);
+    pointer-events: none;
 }
 
-/* 纯预览模式：全屏显示 */
-.editor-preview-full {
-    padding: 8px 0;
-    font-size: 15px;
-    line-height: 1.8;
-    word-break: break-word;
-    flex: 1;
-    overflow-y: auto;
-}
-
-.editor-preview-full h1, .editor-preview-full h2, .editor-preview-full h3 {
-    margin: 16px 0 8px;
-}
-
-.editor-preview-full img,
-.note-preview-img-full {
+.wysiwyg-editor img.editor-inline-img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+    margin: 8px 0;
     display: block;
+    cursor: pointer;
+}
+
+.wysiwyg-editor img.editor-inline-img:hover {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.wysiwyg-editor video.editor-inline-video {
     max-width: 100%;
     border-radius: 8px;
     margin: 8px 0;
+    display: block;
 }
 
-.editor-preview-full video {
-    max-width: 100%;
-    border-radius: 8px;
-    margin: 8px 0;
-}
-
-.editor-preview-full a {
-    color: var(--primary);
-    text-decoration: underline;
-}
-
-.editor-preview-full h1 { font-size: 24px; margin-top: 20px; }
-.editor-preview-full h2 { font-size: 20px; margin-top: 18px; }
-.editor-preview-full h3 { font-size: 18px; margin-top: 16px; }
-.editor-preview-full h4 { font-size: 16px; margin-top: 14px; }
-.editor-preview-full h5 { font-size: 15px; margin-top: 12px; }
-.editor-preview-full h6 { font-size: 14px; margin-top: 10px; }
-.editor-preview-full strong { font-weight: 700; }
-.editor-preview-full em { font-style: italic; }
-.editor-preview-full ul, .editor-preview-full ol { padding-left: 24px; margin: 8px 0; }
-.editor-preview-full li { margin: 4px 0; }
+.wysiwyg-editor h1 { font-size: 24px; margin: 16px 0 8px; }
+.wysiwyg-editor h2 { font-size: 20px; margin: 14px 0 8px; }
+.wysiwyg-editor h3 { font-size: 18px; margin: 12px 0 8px; }
+.wysiwyg-editor h4 { font-size: 16px; margin: 10px 0 8px; }
+.wysiwyg-editor a { color: var(--primary); text-decoration: underline; }
+.wysiwyg-editor strong { font-weight: 700; }
+.wysiwyg-editor em { font-style: italic; }
+.wysiwyg-editor ul, .wysiwyg-editor ol { padding-left: 24px; margin: 8px 0; }
+.wysiwyg-editor li { margin: 4px 0; }
 
 /* 底部工具栏 */
 .editor-bottom-toolbar {

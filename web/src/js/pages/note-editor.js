@@ -1,5 +1,6 @@
 /**
- * 笔记编辑页面（支持图片/视频上传、Markdown 实时预览、分享）
+ * 笔记编辑页面 - 所见即所得编辑器（WYSIWYG）
+ * 使用 contenteditable div，直接编辑渲染后的内容
  */
 
 import { notes, folders } from '../modules/api.js';
@@ -14,10 +15,6 @@ export async function renderNoteEditor(container, params) {
         <div class="editor-wrapper">
             <div class="editor-header">
                 <button class="btn btn-sm" id="btn-back">← 返回</button>
-                <div class="editor-mode-toggle">
-                    <button class="mode-btn active" id="btn-edit-mode">编辑</button>
-                    <button class="mode-btn" id="btn-preview-mode">预览</button>
-                </div>
             </div>
             <div class="editor-body">
                 <div class="form-group">
@@ -29,14 +26,9 @@ export async function renderNoteEditor(container, params) {
                         <option value="">未分类</option>
                     </select>
                 </div>
-                <!-- 编辑区 -->
-                <div id="editor-edit-pane">
-                    <textarea id="note-content" class="editor-content"
-                        placeholder="写点什么..."></textarea>
-                </div>
-                <!-- 实时预览区 -->
-                <div id="editor-preview-pane" class="editor-preview">
-                </div>
+                <!-- 所见即所得编辑区 -->
+                <div id="note-editor" class="wysiwyg-editor" contenteditable="true"
+                     data-placeholder="写点什么..."></div>
             </div>
             <!-- 底部工具栏 -->
             <div class="editor-bottom-toolbar">
@@ -62,7 +54,7 @@ export async function renderNoteEditor(container, params) {
     `;
 
     const titleInput = document.getElementById('note-title');
-    const contentInput = document.getElementById('note-content');
+    const editor = document.getElementById('note-editor');
     const folderSelect = document.getElementById('note-folder');
     const saveBtn = document.getElementById('btn-save');
     const cancelBtn = document.getElementById('btn-cancel');
@@ -72,10 +64,6 @@ export async function renderNoteEditor(container, params) {
     const uploadVideoBtn = document.getElementById('btn-upload-video');
     const videoInput = document.getElementById('video-input');
     const shareBtn = document.getElementById('btn-share');
-    const editModeBtn = document.getElementById('btn-edit-mode');
-    const previewModeBtn = document.getElementById('btn-preview-mode');
-    const editPane = document.getElementById('editor-edit-pane');
-    const previewPane = document.getElementById('editor-preview-pane');
 
     // 加载文件夹列表
     await loadFolderOptions(folderSelect);
@@ -90,8 +78,9 @@ export async function renderNoteEditor(container, params) {
             const result = await notes.get(noteId);
             const note = result.data;
             titleInput.value = note.title;
-            contentInput.value = note.content || '';
             folderSelect.value = note.folder_id || '';
+            // Markdown → HTML 渲染到编辑器
+            editor.innerHTML = markdownToHtml(note.content || '');
         } catch (error) {
             showToast(error.message || '加载笔记失败', 'error');
             navigate('/notes');
@@ -107,36 +96,9 @@ export async function renderNoteEditor(container, params) {
     backBtn.addEventListener('click', goBack);
     cancelBtn.addEventListener('click', goBack);
 
-    // === 实时预览更新 ===
-    let previewTimer = null;
-    const updatePreview = () => {
-        clearTimeout(previewTimer);
-        previewTimer = setTimeout(() => {
-            previewPane.innerHTML = renderMarkdown(contentInput.value);
-        }, 100);
-    };
-
-    // === 编辑/预览模式切换 ===
-    editModeBtn.addEventListener('click', () => {
-        editModeBtn.classList.add('active');
-        previewModeBtn.classList.remove('active');
-        editPane.style.display = '';
-        previewPane.style.display = '';
-        previewPane.classList.remove('editor-preview-full');
-        updatePreview();
-    });
-
-    previewModeBtn.addEventListener('click', () => {
-        previewModeBtn.classList.add('active');
-        editModeBtn.classList.remove('active');
-        editPane.style.display = 'none';
-        previewPane.style.display = '';
-        previewPane.classList.add('editor-preview-full');
-        updatePreview();
-    });
-
     // === 图片上传 ===
     uploadImageBtn.addEventListener('click', () => {
+        editor.focus();
         imageInput.click();
     });
 
@@ -152,14 +114,16 @@ export async function renderNoteEditor(container, params) {
 
         uploadImageBtn.disabled = true;
         const originalHTML = uploadImageBtn.innerHTML;
-        uploadImageBtn.innerHTML = '<span class="toolbar-icon">⏳</span><span class="toolbar-label">上传中</span>';
+        uploadImageBtn.innerHTML = '<span class="toolbar-icon"></span><span class="toolbar-label">上传中</span>';
 
         try {
             const result = await notes.uploadImage(file);
             const { url } = result.data;
-            const markdownImage = `![${file.name}](${url})\n`;
-            insertAtCursor(contentInput, markdownImage);
-            updatePreview();
+
+            // 插入图片到编辑器
+            editor.focus();
+            insertImageAtCursor(editor, url, file.name);
+
             showToast('图片已插入', 'success');
         } catch (error) {
             showToast(error.message || '上传图片失败', 'error');
@@ -172,6 +136,7 @@ export async function renderNoteEditor(container, params) {
 
     // === 视频上传 ===
     uploadVideoBtn.addEventListener('click', () => {
+        editor.focus();
         videoInput.click();
     });
 
@@ -192,9 +157,10 @@ export async function renderNoteEditor(container, params) {
         try {
             const result = await notes.uploadVideo(file);
             const { url } = result.data;
-            const markdownVideo = `<video controls src="${url}" style="max-width:100%;border-radius:8px;margin:8px 0;">你的浏览器不支持视频播放</video>\n`;
-            insertAtCursor(contentInput, markdownVideo);
-            updatePreview();
+
+            editor.focus();
+            insertVideoAtCursor(editor, url);
+
             showToast('视频已插入', 'success');
         } catch (error) {
             showToast(error.message || '上传视频失败', 'error');
@@ -208,7 +174,7 @@ export async function renderNoteEditor(container, params) {
     // === 分享 ===
     shareBtn.addEventListener('click', async () => {
         const title = titleInput.value.trim() || '我的笔记';
-        const content = contentInput.value.trim();
+        const content = htmlToMarkdown(editor.innerHTML);
         const shareText = `${title}\n\n${content}`;
 
         if (navigator.share) {
@@ -228,7 +194,7 @@ export async function renderNoteEditor(container, params) {
     // === 保存 ===
     saveBtn.addEventListener('click', async () => {
         const title = titleInput.value.trim();
-        const content = contentInput.value.trim();
+        const content = htmlToMarkdown(editor.innerHTML).trim();
         const folderId = folderSelect.value ? parseInt(folderSelect.value, 10) : null;
 
         if (!title) {
@@ -247,7 +213,7 @@ export async function renderNoteEditor(container, params) {
             } else {
                 await notes.update(noteId, {
                     title,
-                    content: contentInput.value,
+                    content,
                     folder_id: folderId,
                 });
                 showToast('保存成功', 'success');
@@ -272,33 +238,90 @@ export async function renderNoteEditor(container, params) {
             try {
                 await notes.update(noteId, {
                     title,
-                    content: contentInput.value,
+                    content: htmlToMarkdown(editor.innerHTML),
                     folder_id: folderSelect.value ? parseInt(folderSelect.value, 10) : null,
                 });
             } catch (e) {}
         }, 2000);
     };
 
-    titleInput.addEventListener('input', () => { autoSave(); updatePreview(); });
-    contentInput.addEventListener('input', () => { autoSave(); updatePreview(); });
+    titleInput.addEventListener('input', autoSave);
+    editor.addEventListener('input', autoSave);
 }
 
 /**
- * Markdown 渲染（支持图片、视频、标题、粗体、斜体、链接、列表）
+ * 在编辑器光标位置插入图片
  */
-function renderMarkdown(content) {
-    if (!content) return '<p style="color: var(--text-secondary);">暂无内容</p>';
+function insertImageAtCursor(editor, url, alt) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = alt;
+    img.className = 'editor-inline-img';
+    img.draggable = true;
 
-    let html = escapeHtml(content);
+    insertNodeAtCursor(editor, img);
+
+    // 插入换行
+    const br = document.createElement('br');
+    insertNodeAtCursor(editor, br);
+}
+
+/**
+ * 在编辑器光标位置插入视频
+ */
+function insertVideoAtCursor(editor, url) {
+    const video = document.createElement('video');
+    video.src = url;
+    video.controls = true;
+    video.className = 'editor-inline-video';
+    video.style.cssText = 'max-width:100%;border-radius:8px;margin:8px 0;';
+
+    insertNodeAtCursor(editor, video);
+
+    const br = document.createElement('br');
+    insertNodeAtCursor(editor, br);
+}
+
+/**
+ * 在光标位置插入 DOM 节点
+ */
+function insertNodeAtCursor(editor, node) {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        // 确保 range 在编辑器内
+        if (editor.contains(range.commonAncestorContainer)) {
+            range.deleteContents();
+            range.insertNode(node);
+            // 移动光标到插入节点之后
+            range.setStartAfter(node);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } else {
+            editor.appendChild(node);
+        }
+    } else {
+        editor.appendChild(node);
+    }
+}
+
+/**
+ * Markdown → HTML（用于加载时渲染）
+ */
+function markdownToHtml(markdown) {
+    if (!markdown) return '';
+
+    let html = escapeHtml(markdown);
 
     // 还原 <video> 标签
-    html = html.replace(/&lt;video(.*?)&gt;(.*?)&lt;\/video&gt;/g, '<video$1>$2</video>');
+    html = html.replace(/&lt;video(.*?)&gt;(.*?)&lt;\/video&gt;/g, '<video$1 controls style="max-width:100%;border-radius:8px;margin:8px 0;">$2</video>');
 
-    // 图片: ![alt](url)
+    // 图片
     html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
-        '<img src="$2" alt="$1" class="note-preview-img-full" loading="lazy">');
+        '<img src="$2" alt="$1" class="editor-inline-img">');
 
-    // 链接: [text](url)
+    // 链接
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
         '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
@@ -314,15 +337,106 @@ function renderMarkdown(content) {
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-    // 有序列表
+    // 有序/无序列表
     html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-    // 无序列表
     html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
 
     // 换行
     html = html.replace(/\n/g, '<br>');
 
     return html;
+}
+
+/**
+ * HTML → Markdown（用于保存时转换）
+ */
+function htmlToMarkdown(html) {
+    if (!html) return '';
+
+    // 使用临时 DOM 解析
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    let markdown = '';
+
+    function processNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            markdown += node.textContent;
+            return;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        const tag = node.tagName.toLowerCase();
+
+        switch (tag) {
+            case 'img':
+                markdown += `![${node.alt || '图片'}](${node.src})\n`;
+                break;
+            case 'video':
+                markdown += `<video controls src="${node.src}"></video>\n`;
+                break;
+            case 'br':
+                markdown += '\n';
+                break;
+            case 'p':
+                markdown += processChildren(node) + '\n\n';
+                break;
+            case 'div':
+                // div 通常作为段落分隔
+                markdown += processChildren(node) + '\n';
+                break;
+            case 'strong':
+            case 'b':
+                markdown += `**${processChildren(node)}**`;
+                break;
+            case 'em':
+            case 'i':
+                markdown += `*${processChildren(node)}*`;
+                break;
+            case 'h1':
+                markdown += `# ${processChildren(node)}\n\n`;
+                break;
+            case 'h2':
+                markdown += `## ${processChildren(node)}\n\n`;
+                break;
+            case 'h3':
+                markdown += `### ${processChildren(node)}\n\n`;
+                break;
+            case 'h4':
+                markdown += `#### ${processChildren(node)}\n\n`;
+                break;
+            case 'a':
+                markdown += `[${processChildren(node)}](${node.href})`;
+                break;
+            case 'li':
+                markdown += `- ${processChildren(node)}\n`;
+                break;
+            case 'ul':
+            case 'ol':
+                markdown += processChildren(node);
+                break;
+            default:
+                markdown += processChildren(node);
+        }
+    }
+
+    function processChildren(node) {
+        let text = '';
+        node.childNodes.forEach(child => {
+            const before = markdown;
+            markdown = '';
+            processNode(child);
+            text += markdown;
+            markdown = '';
+        });
+        return text;
+    }
+
+    tmp.childNodes.forEach(child => processNode(child));
+
+    // 清理多余空行
+    return markdown.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -340,24 +454,6 @@ function copyToClipboard(text) {
         document.body.removeChild(textarea);
         showToast('已复制到剪贴板', 'success');
     });
-}
-
-/**
- * 在 textarea 光标位置插入文本
- */
-function insertAtCursor(textarea, text) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const before = textarea.value.substring(0, start);
-    const after = textarea.value.substring(end);
-
-    textarea.value = before + text + after;
-
-    const newCursorPos = start + text.length;
-    textarea.setSelectionRange(newCursorPos, newCursorPos);
-    textarea.focus();
-
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /**
