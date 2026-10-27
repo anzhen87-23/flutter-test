@@ -4,3 +4,4 @@ backend/personal-notes-local
 backend/*.db
 *.exe
 .DS_Store
+flutter_app/dist/
