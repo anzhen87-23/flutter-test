@@ -37,4 +37,4 @@ document.getElementById('btn-logout').addEventListener('click', () => {
 // 初始化路由
 initRouter();
 
-console.log('📝 个人笔记应用已启动');
+console.log('安振个人笔记应用已启动');
