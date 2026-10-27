@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../utils/validators.dart';
 import 'register_page.dart';
@@ -20,6 +20,45 @@ class _LoginPageState extends State<LoginPage> {
   final _accountController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
+  bool _rememberMe = false;
+
+  static const String _savedAccountKey = 'saved_account';
+  static const String _savedPasswordKey = 'saved_password';
+  static const String _rememberMeKey = 'remember_me';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedAccount = prefs.getString(_savedAccountKey);
+    final savedPassword = prefs.getString(_savedPasswordKey);
+    final rememberMe = prefs.getBool(_rememberMeKey) ?? false;
+
+    if (rememberMe && savedAccount != null && savedPassword != null) {
+      _accountController.text = savedAccount;
+      _passwordController.text = savedPassword;
+      setState(() {
+        _rememberMe = true;
+      });
+    }
+  }
+
+  Future<void> _saveCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setString(_savedAccountKey, _accountController.text.trim());
+      await prefs.setString(_savedPasswordKey, _passwordController.text);
+      await prefs.setBool(_rememberMeKey, true);
+    } else {
+      await prefs.remove(_savedAccountKey);
+      await prefs.remove(_savedPasswordKey);
+      await prefs.setBool(_rememberMeKey, false);
+    }
+  }
 
   @override
   void dispose() {
@@ -47,6 +86,9 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint('✅ Login Success');
       debugPrint('👤 User: ${user.toJson()}');
       debugPrint('════════════════════════════════════════════');
+
+      // 保存账号密码
+      await _saveCredentials();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +128,7 @@ class _LoginPageState extends State<LoginPage> {
                   const Icon(Icons.note_add, size: 80, color: Colors.indigo),
                   const SizedBox(height: 16),
                   const Text(
-                    '个人笔记',
+                    '安振个人笔记',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
@@ -138,6 +180,20 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                   const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (value) {
+                          setState(() {
+                            _rememberMe = value ?? false;
+                          });
+                        },
+                      ),
+                      const Text('记住账号和密码'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: _loading ? null : _login,
                     style: ElevatedButton.styleFrom(

@@ -3,6 +3,7 @@ import '../models/note.dart';
 import '../models/folder.dart';
 import '../services/api_service.dart';
 import '../utils/validators.dart';
+import '../widgets/note_content_widget.dart';
 import 'note_editor_page.dart';
 
 class NotesListPage extends StatefulWidget {
@@ -207,11 +208,10 @@ class NotesListPageState extends State<NotesListPage> {
                               if (note.content.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    note.content,
+                                  child: NoteContentWidget(
+                                    content: note.content,
                                     maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: Colors.grey[600]),
+                                    imageMaxHeight: 60,
                                   ),
                                 ),
                               const SizedBox(height: 4),

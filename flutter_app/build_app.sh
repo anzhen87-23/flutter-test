@@ -12,6 +12,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 输出目录
+DIST_DIR="dist"
+
+# 创建 dist 目录
+create_dist_dir() {
+    mkdir -p "$DIST_DIR"
+}
+
 # 打印函数
 print_info() {
     echo -e "${BLUE}ℹ️  $1${NC}"
@@ -63,12 +71,13 @@ EOF
 # 构建 Android
 build_android() {
     print_info "开始构建 Android..."
+    create_dist_dir
 
     # 检查密钥库是否存在
     if [ ! -f ~/upload-keystore.jks ]; then
         print_warning "未找到密钥库，将使用 debug 签名"
-        flutter build apk --release
-        flutter build appbundle --release
+        flutter build apk --debug
+        flutter build appbundle --debug
     else
         flutter build apk --release
         flutter build appbundle --release
@@ -76,8 +85,23 @@ build_android() {
 
     if [ $? -eq 0 ]; then
         print_success "Android 构建完成"
-        echo "  📦 APK: build/app/outputs/flutter-apk/app-release.apk"
-        echo "  📦 AAB: build/app/outputs/bundle/release/app-release.aab"
+
+        # 复制产物到 dist 目录
+        if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            cp build/app/outputs/flutter-apk/app-release.apk "$DIST_DIR/an-zhen-notes-release.apk"
+            echo "  📦 APK: $DIST_DIR/an-zhen-notes-release.apk"
+        elif [ -f "build/app/outputs/flutter-apk/app-debug.apk" ]; then
+            cp build/app/outputs/flutter-apk/app-debug.apk "$DIST_DIR/an-zhen-notes-debug.apk"
+            echo "  📦 APK: $DIST_DIR/an-zhen-notes-debug.apk"
+        fi
+
+        if [ -f "build/app/outputs/bundle/release/app-release.aab" ]; then
+            cp build/app/outputs/bundle/release/app-release.aab "$DIST_DIR/an-zhen-notes-release.aab"
+            echo "  📦 AAB: $DIST_DIR/an-zhen-notes-release.aab"
+        elif [ -f "build/app/outputs/bundle/debug/app-debug.aab" ]; then
+            cp build/app/outputs/bundle/debug/app-debug.aab "$DIST_DIR/an-zhen-notes-debug.aab"
+            echo "  📦 AAB: $DIST_DIR/an-zhen-notes-debug.aab"
+        fi
     else
         print_error "Android 构建失败"
         return 1
@@ -87,13 +111,19 @@ build_android() {
 # 构建 iOS 模拟器
 build_ios_simulator() {
     print_info "开始构建 iOS 模拟器版本..."
+    create_dist_dir
 
     flutter build ios --debug --simulator
 
     if [ $? -eq 0 ]; then
         print_success "iOS 模拟器版本构建完成"
-        echo "  📱 App: build/ios/iphonesimulator/Runner.app"
-        echo "  💡 提示: 打开 Simulator 并拖拽 App 到模拟器窗口即可安装"
+
+        # 复制产物到 dist 目录
+        if [ -d "build/ios/iphonesimulator/Runner.app" ]; then
+            cp -r build/ios/iphonesimulator/Runner.app "$DIST_DIR/Runner-simulator.app"
+            echo "  📱 App: $DIST_DIR/Runner-simulator.app"
+            echo "  💡 提示: 打开 Simulator 并拖拽 App 到模拟器窗口即可安装"
+        fi
     else
         print_error "iOS 模拟器版本构建失败"
         return 1
@@ -103,6 +133,7 @@ build_ios_simulator() {
 # 构建 iOS 真机
 build_ios_device() {
     print_info "开始构建 iOS 真机版本..."
+    create_dist_dir
 
     # 获取已连接的 iOS 设备 ID
     DEVICE_ID=$(flutter devices | grep "ios" | grep -oE '[a-f0-9]{40}' | head -1)
@@ -127,12 +158,19 @@ build_ios_device() {
 
     if [ $? -eq 0 ]; then
         print_success "iOS 真机版本构建完成"
+        cd ..
+
+        # 复制产物到 dist 目录
+        APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/Runner-*/Build/Products/Debug-iphoneos -name "Runner.app" -type d 2>/dev/null | head -1)
+        if [ -d "$APP_PATH" ]; then
+            cp -r "$APP_PATH" "$DIST_DIR/Runner-device.app"
+            echo "  📱 App: $DIST_DIR/Runner-device.app"
+        fi
     else
         print_error "iOS 真机版本构建失败"
         cd ..
         return 1
     fi
-    cd ..
 }
 
 # 安装到 iOS 设备

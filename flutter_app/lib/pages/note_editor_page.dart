@@ -315,11 +315,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   Widget _buildEditPane() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
+      child: _StackedEditor(
         controller: _contentController,
-        maxLines: null,
-        expands: true,
-        textAlignVertical: TextAlignVertical.top,
         decoration: const InputDecoration(
           labelText: '内容',
           hintText: '写点什么...',
@@ -327,6 +324,38 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         ),
       ),
     );
+  }
+
+  /// 从内容中删除指定图片
+  void _removeImage(String fullUrl) async {
+    String relativePath = fullUrl;
+    if (fullUrl.contains('/uploads/notes/')) {
+      relativePath = '/uploads/notes/${fullUrl.split('/uploads/notes/').last}';
+    }
+
+    final content = _contentController.text;
+    final updatedContent = content.replaceAll(
+      RegExp(r'!\[([^\]]*)\]\([^)]*' + RegExp.escape(relativePath) + r'\)\n?'),
+      '',
+    );
+
+    if (updatedContent != content) {
+      _contentController.text = updatedContent;
+      _contentController.selection = TextSelection.collapsed(offset: updatedContent.length);
+    }
+
+    try {
+      final filename = relativePath.split('/uploads/notes/').last;
+      await NotesApi.deleteImage(filename);
+    } catch (e) {
+      // 静默失败
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('图片已删除'), backgroundColor: Colors.orange),
+      );
+    }
   }
 
   Widget _buildPreviewPane() {
@@ -487,6 +516,170 @@ class _VideoElementBuilder extends MarkdownElementBuilder {
               style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 堆叠编辑器：将渲染后的内容（含图片）作为背景，透明 TextField 覆盖在上面
+/// 这样编辑时也能看到图片
+class _StackedEditor extends StatefulWidget {
+  final TextEditingController controller;
+  final InputDecoration decoration;
+
+  const _StackedEditor({
+    required this.controller,
+    required this.decoration,
+  });
+
+  @override
+  State<_StackedEditor> createState() => _StackedEditorState();
+}
+
+class _StackedEditorState extends State<_StackedEditor> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // 底层：渲染后的内容（含图片）
+        _buildRenderedContent(),
+        // 上层：透明的 TextField 用于编辑
+        Positioned.fill(
+          child: TextField(
+            controller: widget.controller,
+            scrollController: _scrollController,
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.8,
+              color: Colors.transparent, // 透明文字
+            ),
+            cursorColor: Colors.black,
+            decoration: widget.decoration.copyWith(
+              border: widget.decoration.border,
+              enabledBorder: widget.decoration.enabledBorder,
+              focusedBorder: widget.decoration.focusedBorder,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 渲染内容（文本 + 图片）
+  Widget _buildRenderedContent() {
+    final content = widget.controller.text;
+
+    return SingleChildScrollView(
+      controller: _scrollController,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _buildContentWidgets(content),
+      ),
+    );
+  }
+
+  /// 构建内容组件列表
+  Widget _buildContentWidgets(String content) {
+    if (content.isEmpty) {
+      return const SizedBox(height: 200);
+    }
+
+    final widgets = <Widget>[];
+    final imageRegex = RegExp(r'!\[([^\]]*)\]\(([^)]+)\)');
+
+    int lastEnd = 0;
+
+    for (final match in imageRegex.allMatches(content)) {
+      // 图片前的文本
+      if (match.start > lastEnd) {
+        final text = content.substring(lastEnd, match.start);
+        if (text.isNotEmpty) {
+          widgets.add(_buildTextWidget(text));
+        }
+      }
+
+      // 图片
+      final url = match.group(2);
+      if (url != null && url.isNotEmpty) {
+        final fullUrl = url.startsWith('http')
+            ? url
+            : '${ApiService.serverUrl}$url';
+
+        widgets.add(_buildImageWidget(fullUrl));
+      }
+
+      lastEnd = match.end;
+    }
+
+    // 最后的文本
+    if (lastEnd < content.length) {
+      final text = content.substring(lastEnd);
+      if (text.isNotEmpty) {
+        widgets.add(_buildTextWidget(text));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  /// 构建文本组件
+  Widget _buildTextWidget(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 15,
+          height: 1.8,
+          color: Color(0xFF1F2937),
+        ),
+      ),
+    );
+  }
+
+  /// 构建图片组件
+  Widget _buildImageWidget(String url) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: CachedNetworkImage(
+            imageUrl: url,
+            fit: BoxFit.contain,
+            placeholder: (context, url) => Container(
+              height: 100,
+              color: Colors.grey[200],
+              child: const Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            errorWidget: (context, url, error) => Container(
+              height: 100,
+              color: Colors.grey[200],
+              child: const Icon(Icons.broken_image, color: Colors.grey, size: 48),
+            ),
+          ),
         ),
       ),
     );
