@@ -216,6 +216,34 @@ export const notes = {
     },
 
     /**
+     * 上传笔记视频
+     */
+    async uploadVideo(file) {
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const headers = {};
+        const token = getToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        console.log('[api] 上传笔记视频:', file.name, file.size, 'bytes');
+        const response = await fetch(`${API_BASE}/notes/upload-image`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+
+        const result = await response.json();
+        console.log('[api] 上传视频响应:', result);
+        if (!response.ok) {
+            throw new Error(result.message || '上传视频失败');
+        }
+        return result;
+    },
+
+    /**
      * 删除笔记图片
      */
     deleteImage(filename) {

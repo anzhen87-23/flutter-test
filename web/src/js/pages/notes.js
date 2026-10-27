@@ -179,14 +179,18 @@ function getFolderName(folderId) {
 }
 
 /**
- * 渲染笔记内容预览（支持 Markdown 图片）
- * 将 ![alt](url) 转为 <img>，其余文本做转义后截断
+ * 渲染笔记内容预览（支持 Markdown 图片和视频）
  */
 function renderNoteContent(content) {
     if (!content) return '';
 
     // 先转义 HTML
     let safe = escapeHtml(content);
+
+    // 还原 <video> 标签（转义后变成 &lt;video...）
+    safe = safe.replace(/&lt;video(.*?)&gt;(.*?)&lt;\/video&gt;/g, (match, attrs, fallback) => {
+        return `<video${attrs} class="note-preview-video" loading="lazy">${fallback}</video>`;
+    });
 
     // 把 ![alt](url) 替换为 <img> 标签
     const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;

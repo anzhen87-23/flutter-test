@@ -10,6 +10,7 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         UPLOAD_DIR: '/var/www/uploads/avatars',
+        NOTES_UPLOAD_DIR: '/var/www/uploads/notes',
         NODE_ENV: 'production'
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',

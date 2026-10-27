@@ -9,8 +9,8 @@ import '../models/folder.dart';
 
 /// API 服务类
 class ApiService {
-  static const String baseUrl = 'http://39.106.88.210:8080/api';
-  static const String serverUrl = 'http://39.106.88.210:8080';
+  static const String baseUrl = 'https://www.anzhenliuli.top/api';
+  static const String serverUrl = 'https://www.anzhenliuli.top';
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_info';
 
@@ -367,6 +367,71 @@ class NotesApi {
     } catch (e) {
       debugPrint('❌ [NoteImage Upload] 请求异常: $e');
       debugPrint('════════════════════════════════════════════');
+      if (e is Exception && e.toString().contains('SocketException')) {
+        throw Exception('网络连接失败，请检查后端服务是否启动');
+      }
+      rethrow;
+    }
+  }
+
+  /// 上传笔记视频
+  static Future<Map<String, dynamic>> uploadVideo(String filePath) async {
+    final url = Uri.parse('${ApiService.baseUrl}/notes/upload-image');
+    final token = await ApiService.getToken();
+
+    final ext = filePath.split('.').last.toLowerCase();
+    String mimeType;
+    switch (ext) {
+      case 'mp4':
+        mimeType = 'video/mp4';
+        break;
+      case 'mov':
+        mimeType = 'video/quicktime';
+        break;
+      case 'webm':
+        mimeType = 'video/webm';
+        break;
+      case 'avi':
+        mimeType = 'video/x-msvideo';
+        break;
+      default:
+        mimeType = 'application/octet-stream';
+    }
+
+    debugPrint('📤 [NoteVideo Upload] 开始上传: $filePath, MIME: $mimeType');
+
+    final request = http.MultipartRequest('POST', url);
+
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(await http.MultipartFile.fromPath(
+      'video',
+      filePath,
+      contentType: MediaType.parse(mimeType),
+    ));
+
+    try {
+      final streamedResponse = await request.send();
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      final result = jsonDecode(responseBody);
+
+      if (streamedResponse.statusCode == 401) {
+        await ApiService.clearToken();
+        throw Exception('登录已过期，请重新登录');
+      }
+
+      if (streamedResponse.statusCode >= 400) {
+        final message = result['message'] ?? '上传视频失败 (HTTP ${streamedResponse.statusCode})';
+        throw Exception(message);
+      }
+
+      final data = result['data'] as Map<String, dynamic>;
+      debugPrint('✅ [NoteVideo Upload] 上传成功: ${data['url']}');
+      return data;
+    } catch (e) {
       if (e is Exception && e.toString().contains('SocketException')) {
         throw Exception('网络连接失败，请检查后端服务是否启动');
       }

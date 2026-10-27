@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/folder.dart';
 import '../services/api_service.dart';
 
@@ -22,6 +25,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   bool _loading = false;
   bool _saving = false;
   bool _uploading = false;
+  bool _isPreviewMode = false;
 
   bool get _isNew => widget.noteId == null;
 
@@ -35,13 +39,11 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     setState(() => _loading = true);
 
     try {
-      // 加载文件夹列表
       final folders = await FoldersApi.list();
       if (mounted) {
         setState(() => _folders = folders);
       }
 
-      // 如果是编辑模式，加载笔记数据
       if (!_isNew) {
         final note = await NotesApi.get(widget.noteId!);
         if (mounted) {
@@ -50,7 +52,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           _selectedFolderId = note.folderId;
         }
       } else {
-        // 新建模式：使用传入的初始文件夹
         if (mounted) {
           _selectedFolderId = widget.initialFolderId;
         }
@@ -80,14 +81,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     }
 
     setState(() => _saving = true);
-
-    debugPrint('════════════════════════════════════════════');
-    debugPrint('📝 [Note Save] 开始保存');
-    debugPrint('📝 [Note Save] 是否新建: $_isNew');
-    debugPrint('📝 [Note Save] title: $title');
-    debugPrint('📝 [Note Save] content: $content');
-    debugPrint('📝 [Note Save] _selectedFolderId: $_selectedFolderId (runtimeType: ${_selectedFolderId.runtimeType})');
-    debugPrint('📝 [Note Save] initialFolderId: ${widget.initialFolderId}');
 
     try {
       if (_isNew) {
@@ -134,19 +127,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         imageQuality: 85,
       );
 
-      if (image == null) return; // 用户取消
-
-      debugPrint('📷 [Image Pick] 选择图片: ${image.path}');
+      if (image == null) return;
 
       setState(() => _uploading = true);
 
-      // 上传图片
       final result = await NotesApi.uploadImage(image.path);
       final url = result['url'] as String;
 
-      debugPrint('📷 [Image Upload] 成功: $url');
-
-      // 在光标位置插入 Markdown 图片语法
       _insertAtCursor('![图片]($url)\n');
 
       if (mounted) {
@@ -155,7 +142,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         );
       }
     } catch (e) {
-      debugPrint('❌ [Image Upload] 失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('上传图片失败: $e'), backgroundColor: Colors.red),
@@ -166,6 +152,62 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         setState(() => _uploading = false);
       }
     }
+  }
+
+  /// 选择并上传视频
+  Future<void> _pickAndUploadVideo() async {
+    try {
+      final XFile? video = await _imagePicker.pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: const Duration(minutes: 5),
+      );
+
+      if (video == null) return;
+
+      // 检查文件大小（50MB）
+      final fileSize = await video.length();
+      if (fileSize > 50 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('视频大小不能超过 50MB'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      setState(() => _uploading = true);
+
+      final result = await NotesApi.uploadVideo(video.path);
+      final url = result['url'] as String;
+
+      // 插入视频 HTML 标签（Markdown 渲染器会处理）
+      _insertAtCursor('<video controls src="$url"></video>\n');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('视频已插入'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('上传视频失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
+    }
+  }
+
+  /// 分享笔记
+  void _shareNote() {
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    final shareText = '$title\n\n$content';
+
+    Share.share(shareText, subject: title);
   }
 
   /// 在光标位置插入文本
@@ -182,7 +224,6 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
     controller.text = before + text + after;
 
-    // 移动光标到插入文本之后
     final newCursorPos = start + text.length;
     controller.selection = TextSelection.collapsed(offset: newCursorPos);
   }
@@ -200,17 +241,13 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       appBar: AppBar(
         title: Text(_isNew ? '新建笔记' : '编辑笔记'),
         actions: [
-          // 图片上传按钮
+          // 编辑/预览切换
           IconButton(
-            icon: _uploading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.image),
-            tooltip: '插入图片',
-            onPressed: _uploading ? null : _pickAndUploadImage,
+            icon: Icon(_isPreviewMode ? Icons.edit : Icons.visibility),
+            tooltip: _isPreviewMode ? '编辑' : '预览',
+            onPressed: () {
+              setState(() => _isPreviewMode = !_isPreviewMode);
+            },
           ),
           // 保存按钮
           IconButton(
@@ -227,64 +264,231 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // 文件夹选择
-                  if (_folders.isNotEmpty)
-                    DropdownButtonFormField<int?>(
-                      initialValue: _selectedFolderId,
-                      decoration: const InputDecoration(
-                        labelText: '文件夹',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('未分类'),
+          : Column(
+              children: [
+                // 标题和文件夹
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      if (_folders.isNotEmpty)
+                        DropdownButtonFormField<int?>(
+                          value: _selectedFolderId,
+                          decoration: const InputDecoration(
+                            labelText: '文件夹',
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('未分类')),
+                            ..._folders.map((f) => DropdownMenuItem(value: f.id, child: Text(f.name))),
+                          ],
+                          onChanged: (value) => setState(() => _selectedFolderId = value),
                         ),
-                        ..._folders.map((f) => DropdownMenuItem(
-                          value: f.id,
-                          child: Text(f.name),
-                        )),
-                      ],
-                      onChanged: (value) {
-                        debugPrint('🔽 [Dropdown] onChanged: value=$value, runtimeType=${value.runtimeType}');
-                        setState(() => _selectedFolderId = value);
-                      },
-                    ),
-                  const SizedBox(height: 16),
-
-                  // 标题
-                  TextField(
-                    controller: _titleController,
-                    maxLength: 200,
-                    decoration: const InputDecoration(
-                      labelText: '标题',
-                      hintText: '输入笔记标题',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 内容
-                  Expanded(
-                    child: TextField(
-                      controller: _contentController,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      decoration: const InputDecoration(
-                        labelText: '内容',
-                        hintText: '写点什么... 点击右上角🖼️插入图片',
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _titleController,
+                        maxLength: 200,
+                        decoration: const InputDecoration(
+                          labelText: '标题',
+                          hintText: '输入笔记标题',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                // 内容区（编辑或预览）
+                Expanded(
+                  child: _isPreviewMode
+                      ? _buildPreviewPane()
+                      : _buildEditPane(),
+                ),
+              ],
             ),
+      // 底部工具栏
+      bottomNavigationBar: _buildBottomToolbar(),
+    );
+  }
+
+  Widget _buildEditPane() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        controller: _contentController,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        decoration: const InputDecoration(
+          labelText: '内容',
+          hintText: '写点什么...',
+          border: OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewPane() {
+    final content = _contentController.text;
+    if (content.isEmpty) {
+      return const Center(
+        child: Text('暂无内容', style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Markdown(
+        data: content,
+        selectable: true,
+        imageBuilder: (uri, title, alt) {
+          return CachedNetworkImage(
+            imageUrl: uri.toString(),
+            placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+            errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
+            fit: BoxFit.contain,
+          );
+        },
+        builders: {
+          'video': _VideoElementBuilder(),
+        },
+        styleSheet: MarkdownStyleSheet(
+          p: const TextStyle(fontSize: 15, height: 1.8),
+          h1: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          h2: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          h3: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomToolbar() {
+    return SafeArea(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            // 图片上传
+            _ToolbarButton(
+              icon: _uploading ? Icons.hourglass_empty : Icons.image,
+              label: '图片',
+              onTap: _uploading ? null : _pickAndUploadImage,
+            ),
+            const SizedBox(width: 8),
+            // 视频上传
+            _ToolbarButton(
+              icon: _uploading ? Icons.hourglass_empty : Icons.videocam,
+              label: '视频',
+              onTap: _uploading ? null : _pickAndUploadVideo,
+            ),
+            const SizedBox(width: 8),
+            // 分享
+            _ToolbarButton(
+              icon: Icons.share,
+              label: '分享',
+              onTap: _shareNote,
+            ),
+            const Spacer(),
+            // 格式化按钮
+            _ToolbarButton(
+              icon: Icons.format_bold,
+              label: '粗体',
+              onTap: () => _insertAtCursor('****'),
+              compact: true,
+            ),
+            _ToolbarButton(
+              icon: Icons.format_italic,
+              label: '斜体',
+              onTap: () => _insertAtCursor('**'),
+              compact: true,
+            ),
+            _ToolbarButton(
+              icon: Icons.title,
+              label: '标题',
+              onTap: () => _insertAtCursor('## '),
+              compact: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 底部工具栏按钮
+class _ToolbarButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool compact;
+
+  const _ToolbarButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 12,
+          vertical: 6,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: compact ? 18 : 22, color: onTap != null ? null : Colors.grey),
+            if (!compact)
+              Text(
+                label,
+                style: TextStyle(fontSize: 10, color: onTap != null ? null : Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 视频元素构建器（Markdown 中的 <video> 标签）
+class _VideoElementBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfter(covariant dynamic element, TextStyle? preferredStyle) {
+    final src = element.attributes['src'] ?? '';
+    if (src.isEmpty) return null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      height: 200,
+      decoration: BoxDecoration(
+        color: Colors.black12,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.play_circle_outline, size: 48, color: Colors.grey),
+            const SizedBox(height: 8),
+            Text('视频文件', style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 4),
+            SelectableText(
+              src.toString(),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

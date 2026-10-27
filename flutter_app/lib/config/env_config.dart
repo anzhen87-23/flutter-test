@@ -19,9 +19,9 @@ class EnvConfig {
   static String get apiBaseUrl {
     switch (_currentEnv) {
       case AppEnvironment.development:
-        return 'http://39.106.88.210:8080/api'; // 开发环境（与生产相同）
+        return 'https://www.anzhenliuli.top/api'; // 开发环境
       case AppEnvironment.production:
-        return 'http://39.106.88.210:8080/api'; // 生产环境
+        return 'https://www.anzhenliuli.top/api'; // 生产环境
     }
   }
 

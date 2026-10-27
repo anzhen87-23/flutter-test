@@ -245,48 +245,72 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	})
 }
 
-// UploadNoteImage 上传笔记图片
+// UploadNoteImage 上传笔记图片或视频
 func (h *NoteHandler) UploadNoteImage(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userIDStr := c.GetString("user_id")
 
-	log.Printf("[note-image] 开始上传图片: user_id=%s", userIDStr)
+	log.Printf("[note-media] 开始上传文件: user_id=%s", userIDStr)
 	_ = userID // 用于后续可能的权限校验
 
 	// 读取 multipart 文件
 	file, err := c.FormFile("image")
 	if err != nil {
-		log.Printf("[note-image] 读取文件字段失败: err=%v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请上传图片文件"})
-		return
-	}
-
-	// 限制文件大小（10MB）
-	if file.Size > 10*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "图片大小不能超过10MB"})
-		return
+		// 兼容视频字段名
+		file, err = c.FormFile("video")
+		if err != nil {
+			log.Printf("[note-media] 读取文件字段失败: err=%v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请上传文件"})
+			return
+		}
 	}
 
 	// 检查文件类型
 	contentType := file.Header.Get("Content-Type")
 	ext := strings.ToLower(filepath.Ext(file.Filename))
+
 	validImageTypes := map[string]bool{
 		"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true,
 	}
-	validExtensions := map[string]bool{
+	validImageExtensions := map[string]bool{
 		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
 	}
+	validVideoTypes := map[string]bool{
+		"video/mp4": true, "video/quicktime": true, "video/webm": true, "video/x-msvideo": true,
+	}
+	validVideoExtensions := map[string]bool{
+		".mp4": true, ".mov": true, ".webm": true, ".avi": true,
+	}
 
-	if !validImageTypes[contentType] && !validExtensions[ext] {
-		log.Printf("[note-image] 不支持的文件类型: content_type=%s, ext=%s", contentType, ext)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仅支持 JPG/PNG/GIF/WEBP 格式"})
+	isImage := validImageTypes[contentType] || validImageExtensions[ext]
+	isVideo := validVideoTypes[contentType] || validVideoExtensions[ext]
+
+	if !isImage && !isVideo {
+		log.Printf("[note-media] 不支持的文件类型: content_type=%s, ext=%s", contentType, ext)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仅支持图片(JPG/PNG/GIF/WEBP)或视频(MP4/MOV/WEBM/AVI)格式"})
+		return
+	}
+
+	// 文件大小限制：图片 10MB，视频 50MB
+	var maxSize int64
+	var fileType string
+	if isVideo {
+		maxSize = 50 * 1024 * 1024
+		fileType = "视频"
+	} else {
+		maxSize = 10 * 1024 * 1024
+		fileType = "图片"
+	}
+
+	if file.Size > maxSize {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": fmt.Sprintf("%s大小不能超过%dMB", fileType, maxSize/1024/1024)})
 		return
 	}
 
 	// 确保上传目录存在
 	uploadDir := getNoteUploadDir()
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		log.Printf("[note-image] 创建目录失败: err=%v", err)
+		log.Printf("[note-media] 创建目录失败: err=%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "服务器存储初始化失败"})
 		return
 	}
@@ -296,21 +320,22 @@ func (h *NoteHandler) UploadNoteImage(c *gin.Context) {
 	savePath := filepath.Join(uploadDir, safeFilename)
 
 	if err := c.SaveUploadedFile(file, savePath); err != nil {
-		log.Printf("[note-image] 保存文件失败: err=%v", err)
+		log.Printf("[note-media] 保存文件失败: err=%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存文件失败"})
 		return
 	}
 
-	imageURL := "/uploads/notes/" + safeFilename
-	log.Printf("[note-image] 上传成功: url=%s", imageURL)
+	fileURL := "/uploads/notes/" + safeFilename
+	log.Printf("[note-media] 上传成功: type=%s, url=%s", fileType, fileURL)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "上传成功",
 		"data": gin.H{
-			"url":      imageURL,
-			"filename": safeFilename,
-			"size":     file.Size,
+			"url":       fileURL,
+			"filename":  safeFilename,
+			"size":      file.Size,
+			"file_type": fileType,
 		},
 	})
 }
